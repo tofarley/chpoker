@@ -42,6 +42,21 @@
   async function animateChange(applyChange: () => void) {
     const before = captureCardPositions();
     applyChange();
+    // Clear any leftover drag styling on existing slots BEFORE Svelte commits
+    // the new DOM. This matters for same-row swaps: Svelte just reorders the
+    // slot (it isn't destroyed/recreated like in a cross-row swap), so the
+    // inline drag transform/z-index would persist and the slot would render
+    // offset from where its flex slot actually sits. Clearing before tick()
+    // also means the post-tick capture sees natural positions, so the FLIP
+    // inverse math is right.
+    boardEl.querySelectorAll<HTMLElement>('.card-slot').forEach(slot => {
+      slot.style.transform = '';
+      slot.style.transition = '';
+      slot.style.zIndex = '';
+      slot.style.position = '';
+      slot.removeAttribute('data-x');
+      slot.removeAttribute('data-y');
+    });
     await tick();
 
     const moved: HTMLElement[] = [];

@@ -103,6 +103,7 @@
     {@const userKey = arrangementKey(arrangement)}
     {@const optKey = arrangementKey(sr.optimum)}
     {@const backKey = arrangementKey(sr.strongestBack)}
+    {@const middleKey = arrangementKey(sr.strongestMiddle)}
     {@const frontKey = arrangementKey(sr.strongestFront)}
     <section class="solve-panel">
       <header>
@@ -136,10 +137,23 @@
 
       <div class="solve-section">
         <div class="solve-title">
-          <span>Strongest possible Front</span>
-          {#if frontKey === optKey}<span class="hint">same as balanced</span>{:else if frontKey === backKey}<span class="hint">same as strongest-back</span>{/if}
+          <span>Strongest possible Middle</span>
+          {#if middleKey === optKey}<span class="hint">same as balanced</span>{:else if middleKey === backKey}<span class="hint">same as strongest-back</span>{/if}
         </div>
-        {#if frontKey !== optKey && frontKey !== backKey}
+        {#if middleKey !== optKey && middleKey !== backKey}
+          <MiniArrangement arrangement={sr.strongestMiddle} names={sr.strongestMiddleNames} />
+          <button class="apply" on:click={() => applyArrangement(sr.strongestMiddle)} disabled={userKey === middleKey}>
+            {userKey === middleKey ? 'Already applied' : 'Apply this arrangement'}
+          </button>
+        {/if}
+      </div>
+
+      <div class="solve-section">
+        <div class="solve-title">
+          <span>Strongest possible Front</span>
+          {#if frontKey === optKey}<span class="hint">same as balanced</span>{:else if frontKey === backKey}<span class="hint">same as strongest-back</span>{:else if frontKey === middleKey}<span class="hint">same as strongest-middle</span>{/if}
+        </div>
+        {#if frontKey !== optKey && frontKey !== backKey && frontKey !== middleKey}
           <MiniArrangement arrangement={sr.strongestFront} names={sr.strongestFrontNames} />
           <button class="apply" on:click={() => applyArrangement(sr.strongestFront)} disabled={userKey === frontKey}>
             {userKey === frontKey ? 'Already applied' : 'Apply this arrangement'}
