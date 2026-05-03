@@ -1,0 +1,44 @@
+{
+  "_help": "Hand-written validation cases. Add as many as you like. Cards are lowercase 'rs' (rank+suit) like 'as', 'tc', '7d'. Any expect.* key may be omitted; only the keys you provide are checked. Hand-name strings must match what our evaluator produces (run the solver in the UI once to get the exact wording, e.g. 'Four Aces', 'Aces full of Sevens', 'Pair of Kings', 'King-high', 'Royal flush', 'Straight flush, Five-high', 'Flush, Ace-high').",
+  "cases": [
+    {
+      "name": "four aces plus trip kings",
+      "cards": "as ah ad ac ks kh kd 7s 7h 5s 4h 3d 2c",
+      "expect": {
+        "strongestBackName": "Four Aces",
+        "strongestMiddleName": "Kings full of Sevens",
+        "strongestFrontName": "Three Aces",
+        "balancedFrontName": "Three Aces"
+      }
+    },
+    {
+      "name": "royal flush dealt — should land in back",
+      "cards": "as ks qs js ts ah kh 7d 7c 5d 3c 2h 2s",
+      "expect": {
+        "strongestBackName": "Royal flush"
+      }
+    },
+    {
+      "name": "two flushes — both go in 5-card rows",
+      "cards": "as ks qs js 9s ah kh jh 9h 3h 2c 2d 5c",
+      "expect": {
+        "strongestBackName": "Flush, Ace-high",
+        "strongestMiddleName": "Flush, Ace-high"
+      }
+    },
+    {
+      "name": "quad twos with two aces and two kings",
+      "cards": "2s 2h 2d 2c as ah kd qc js 9h 5d 4c 3s",
+      "expect": {
+        "strongestBackName": "Four Twos"
+      }
+    },
+    {
+      "name": "rainbow broadway straight",
+      "cards": "as kh qd jc ts 9h 8d 7c 6s 5h 4d 3c 2s",
+      "expect": {
+        "strongestBackName": "Straight, Ace-high"
+      }
+    }
+  ]
+}
