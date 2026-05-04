@@ -43,16 +43,16 @@
 
 <style>
   .mini-arrangement {
-    --card-w: 38px;
-    --card-h: 54px;
+    --card-w: 42px;
+    --card-h: 59px;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
   }
-  /* Mini cards: soften the center glyph so the corner indices dominate. */
+  /* Mini cards: a touch larger center glyph at full visibility. */
   .mini-arrangement :global(.card .center) {
-    font-size: 1.4em;
-    opacity: 0.55;
+    font-size: 1.7em;
+    opacity: 0.88;
   }
   .mini-row {
     display: flex;

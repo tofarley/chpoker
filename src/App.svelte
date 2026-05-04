@@ -166,7 +166,7 @@
     max-width: 720px;
     margin: 0 auto;
     padding: 0.8rem 0.8rem max(env(safe-area-inset-bottom), 1rem);
-    --card-w: clamp(40px, 9.5vw, 64px);
+    --card-w: clamp(44px, 10.5vw, 70px);
     --card-h: calc(var(--card-w) * 1.4);
   }
   header { text-align: center; margin: 0.5rem 0 1rem; }
