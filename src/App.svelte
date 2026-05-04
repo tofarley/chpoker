@@ -26,17 +26,6 @@
     showSolve = false;
   }
 
-  function reset() {
-    const all = [...arrangement.back, ...arrangement.middle, ...arrangement.front];
-    arrangement = {
-      back: all.slice(0, 5),
-      middle: all.slice(5, 10),
-      front: all.slice(10, 13)
-    };
-    solveResult = null;
-    showSolve = false;
-  }
-
   function runSolve() {
     const all = [...arrangement.back, ...arrangement.middle, ...arrangement.front];
     solveResult = solve(all, arrangement);
@@ -88,7 +77,6 @@
   <div class="actions">
     <button on:click={deal}>Deal new</button>
     <button on:click={runSolve} disabled={!countsOk}>Solve</button>
-    <button class="secondary" on:click={reset}>Reset layout</button>
     <button
       class="secondary icon-btn"
       title={$soundEnabled ? 'Mute sounds' : 'Unmute sounds'}

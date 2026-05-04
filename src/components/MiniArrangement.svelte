@@ -49,13 +49,9 @@
     flex-direction: column;
     gap: 0.45rem;
   }
-  /* Mini cards: drop the corner suit glyphs (suit appears once, in the
-     softened center), and keep just the rank in the corners. */
-  .mini-arrangement :global(.card .corner .suit) {
-    display: none;
-  }
+  /* Mini cards: soften the center glyph so the corner indices dominate. */
   .mini-arrangement :global(.card .center) {
-    font-size: 1.3em;
+    font-size: 1.4em;
     opacity: 0.55;
   }
   .mini-row {

@@ -9,15 +9,9 @@
 </script>
 
 <div class="card" class:red class:static={isStatic} data-card-id={card.id}>
-  <div class="corner top">
-    <span class="rank">{label}</span>
-    <span class="suit">{glyph}</span>
-  </div>
+  <div class="corner top">{label}</div>
   <div class="center">{glyph}</div>
-  <div class="corner bottom">
-    <span class="rank">{label}</span>
-    <span class="suit">{glyph}</span>
-  </div>
+  <div class="corner bottom">{label}</div>
 </div>
 
 <style>
@@ -61,22 +55,22 @@
     transition: none;
   }
   .corner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: block;
     line-height: 1;
-    /* corner inherits .card font-size (1em) */
+    letter-spacing: -0.05em;
+    /* corner inherits .card font-size (1em); rank-only now (no suit glyph) */
   }
-  .corner.bottom { transform: rotate(180deg); }
-  .corner .rank { letter-spacing: -0.05em; }
-  .corner .suit { font-size: 0.85em; line-height: 1; }
+  .corner.bottom {
+    transform: rotate(180deg);
+    text-align: left;
+  }
   .center {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5em;
+    font-size: 1.8em;
     pointer-events: none;
     opacity: 0.88;
   }
