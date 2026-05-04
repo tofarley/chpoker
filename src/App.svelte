@@ -1,15 +1,19 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition';
   import { dealHand } from './lib/deck';
   import { checkArrangement, solve } from './lib/solver';
   import { nameHand3, nameHand5 } from './lib/evaluator';
-  import { soundEnabled } from './lib/sound';
+  import { soundEnabled, playWin } from './lib/sound';
   import type { Arrangement, SolveResult } from './lib/types';
   import Board from './components/Board.svelte';
   import MiniArrangement from './components/MiniArrangement.svelte';
+  import Fireworks from './components/Fireworks.svelte';
 
   let arrangement: Arrangement = freshDeal();
   let solveResult: SolveResult | null = null;
   let showSolve = false;
+  let showCelebration = false;
+  let celebrationMessage = '';
 
   function freshDeal(): Arrangement {
     const cards = dealHand();
@@ -24,12 +28,27 @@
     arrangement = freshDeal();
     solveResult = null;
     showSolve = false;
+    showCelebration = false;
   }
 
   function runSolve() {
     const all = [...arrangement.back, ...arrangement.middle, ...arrangement.front];
     solveResult = solve(all, arrangement);
     showSolve = true;
+
+    // Spirit match: same hand-name on every row as the balanced optimum
+    // (kickers / suits may differ). If yes, celebrate.
+    if (solveResult.userIsLegal) {
+      const userBack = nameHand5(arrangement.back);
+      const userMiddle = nameHand5(arrangement.middle);
+      const userFront = nameHand3(arrangement.front);
+      const opt = solveResult.optimumNames;
+      if (userBack === opt.back && userMiddle === opt.middle && userFront === opt.front) {
+        celebrationMessage = '🎉 You found the best play!';
+        showCelebration = true;
+        playWin();
+      }
+    }
   }
 
   function applyArrangement(a: Arrangement) {
@@ -85,6 +104,14 @@
       {$soundEnabled ? '🔊' : '🔇'}
     </button>
   </div>
+
+  {#if showCelebration}
+    <Fireworks on:done={() => showCelebration = false} />
+    <div class="celebration-banner" transition:fly={{ y: -40, duration: 280 }}>
+      {celebrationMessage}
+      <div class="celebration-sub">Your arrangement matches the best balanced solution.</div>
+    </div>
+  {/if}
 
   {#if showSolve && solveResult}
     {@const sr = solveResult}
@@ -201,6 +228,28 @@
     padding: 0.6rem 0.7rem;
     font-size: 1rem;
     line-height: 1;
+  }
+  .celebration-banner {
+    position: fixed;
+    top: max(1rem, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #d4af37, #f5d272);
+    color: #1a1a1a;
+    padding: 0.75rem 1.2rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+    font-weight: 700;
+    text-align: center;
+    z-index: 1001;
+    pointer-events: none;
+    max-width: calc(100vw - 2rem);
+  }
+  .celebration-sub {
+    font-size: 0.78rem;
+    font-weight: 500;
+    opacity: 0.85;
+    margin-top: 0.15rem;
   }
   .solve-panel {
     margin-top: 1.2rem;

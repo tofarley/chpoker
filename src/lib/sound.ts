@@ -64,3 +64,51 @@ export function playSwap(): void {
   src.start(now);
   src.stop(now + dur);
 }
+
+/*
+ * Synthesized "trumpet fanfare" — four ascending notes (C5, E5, G5, C6),
+ * sawtooth + square mixed through a lowpass for a brass-ish timbre. Same
+ * no-assets approach as playSwap; close enough to a fanfare without a sample.
+ */
+export function playWin(): void {
+  if (!_enabled) return;
+  const ac = ctx();
+  if (!ac) return;
+
+  const now = ac.currentTime;
+  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+  const stagger = 0.11;
+  const dur = 0.32;
+
+  notes.forEach((freq, i) => {
+    const t = now + i * stagger;
+
+    const saw = ac.createOscillator();
+    saw.type = 'sawtooth';
+    saw.frequency.value = freq;
+
+    const sq = ac.createOscillator();
+    sq.type = 'square';
+    sq.frequency.value = freq * 2;
+
+    const mix = ac.createGain();
+    mix.gain.value = 0.5;
+
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = freq * 5;
+    filter.Q.value = 1.8;
+
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(0.16, t + 0.02);
+    env.gain.linearRampToValueAtTime(0.1, t + 0.12);
+    env.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+
+    saw.connect(mix);
+    sq.connect(mix);
+    mix.connect(filter).connect(env).connect(ac.destination);
+    saw.start(t); saw.stop(t + dur);
+    sq.start(t); sq.stop(t + dur);
+  });
+}

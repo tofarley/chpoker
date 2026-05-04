@@ -275,6 +275,35 @@ npm run test:run     # full vitest suite
 npm run fixtures:gen # regenerate primedope fixtures (lazy-fetches their JS)
 ```
 
+### Running the dev server when you need to verify a change
+
+The user expects you to start the dev server yourself when a change
+needs visual verification, then stop it when you're done. Don't leave it
+running across sessions — it shows up as a stuck "in progress" task in
+the user's UI long after the work is done.
+
+**Start** (always backgrounded so you can keep working in the meantime):
+
+```
+npm run dev   # invoke via Bash with run_in_background=true
+```
+
+Vite logs `Local: http://localhost:5173/` once it's ready (usually <1s).
+Quick smoke check that it's serving: `curl -sf http://localhost:5173/`.
+
+**Stop** when verification is done:
+
+```
+pkill -f "node.*vite"
+```
+
+Or kill the specific PIDs from `pgrep -af vite`. Confirm with
+`curl -sf http://localhost:5173/ -o /dev/null && echo serving || echo stopped`.
+
+You can't drive the browser yourself, so visual verification means
+either asking the user to refresh and look, or — for non-visual changes
+— relying on the test suite, `svelte-check`, and `npm run build`.
+
 ## Code-style notes
 
 - Files are TypeScript-strict. `svelte-check` is the CI gate.
