@@ -311,7 +311,11 @@
     max-width: 720px;
     margin: 0 auto;
     padding: 0.8rem 0.8rem max(env(safe-area-inset-bottom), 1rem);
-    --card-w: clamp(44px, 10.5vw, 70px);
+    /* vw is the lever that actually moves on phones — the previous 10.5vw
+       was below the floor on every iPhone, so phones got stuck at min.
+       At 16vw: 320px=51, 375px=60, 390px=62, 430px=69. Stays safely inside
+       the panel padding (5W + gaps + main + row padding ≤ viewport). */
+    --card-w: clamp(50px, 16vw, 72px);
     --card-h: calc(var(--card-w) * 1.4);
   }
   header { text-align: center; margin: 0.5rem 0 1rem; }

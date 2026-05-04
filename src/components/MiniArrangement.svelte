@@ -43,10 +43,10 @@
 
 <style>
   .mini-arrangement {
-    /* Scales between iPhone SE-ish (~42px) and desktop (~52px), so a 5-card
-       row never overflows the panel on small phones. 13vw on a 320px screen
-       is 41.6, well inside the available width after panel padding. */
-    --card-w: clamp(38px, 13vw, 52px);
+    /* Match panel has more padding (opp block + main), so we go a touch
+       smaller than the main board. At 15vw: 320px=48, 375px=56, 390px=58,
+       430px=64. Caps at 60px on tablet+. */
+    --card-w: clamp(44px, 15vw, 60px);
     --card-h: calc(var(--card-w) * 1.4);
     display: flex;
     flex-direction: column;
