@@ -47,6 +47,18 @@
     matchResult = playMatch(arrangement, round.opponents);
     showMatch = true;
     showSolve = false;
+
+    // Celebrate if our total >= the best individual opponent's score.
+    // opp.points is OUR score against that opponent (positive = we beat them),
+    // so the opponent's score from their POV is -opp.points.
+    if (matchResult.opponents.length > 0) {
+      const bestOpponent = Math.max(...matchResult.opponents.map(o => -o.points));
+      if (matchResult.total >= bestOpponent) {
+        celebrationMessage = '🎉 You beat the field!';
+        showCelebration = true;
+        playWin();
+      }
+    }
   }
 
   // Send the per-hand target to the vite dev-server terminal via the HMR
