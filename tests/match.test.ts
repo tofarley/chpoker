@@ -97,14 +97,14 @@ describe('pickOpponentArrangement — per-strategy behavior', () => {
   ];
 
   it('every strategy returns a legal arrangement', () => {
-    for (const strat of ['random', 'maxProduct', 'frontWeighted'] as const) {
+    for (const strat of ['lexBack', 'maxProduct', 'frontWeighted'] as const) {
       const a = pickOpponentArrangement(fourPairHand, strat);
       expect(checkArrangement(a).legal).toBe(true);
     }
   });
 
-  it('random strategy uses all 13 cards exactly once', () => {
-    const a = pickOpponentArrangement(fourPairHand, 'random');
+  it('lexBack uses all 13 cards exactly once', () => {
+    const a = pickOpponentArrangement(fourPairHand, 'lexBack');
     const allIds = [...a.front, ...a.middle, ...a.back].map(c => c.id).sort();
     const inputIds = fourPairHand.map(c => c.id).sort();
     expect(allIds).toEqual(inputIds);

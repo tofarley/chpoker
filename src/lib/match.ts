@@ -65,18 +65,27 @@ const PROFESSOR_FRONT_ALPHA = 1.7;
  * that strategy produces, given the legal-partition enumerator from the
  * solver.
  */
-function pickRandomLegal(cards: Card[]): Arrangement {
-  // Reservoir sampling — uniform random over all legal arrangements in a
-  // single pass. Math.random() is fine here; we don't need crypto-quality
-  // randomness for AI play.
-  let chosen: Arrangement | null = null;
-  let count = 0;
+
+// Naive beginner: always make the back as strong as possible, then break
+// ties by max middle, then max front. Same "lex-back" arrangement that
+// the solver surfaces as `strongestBack` in the Solve panel — it
+// over-emphasizes the back and tends to leave weak fronts, which is a
+// real-world beginner mistake (and the strategy guide flags front
+// strength as the most under-played position).
+function pickLexBack(cards: Card[]): Arrangement {
+  let best: ScoredArrangement | null = null;
   for (const sa of enumerateLegal(cards)) {
-    count++;
-    if (Math.random() * count < 1) chosen = sa.arrangement;
+    if (
+      !best ||
+      sa.backScore > best.backScore ||
+      (sa.backScore === best.backScore && sa.middleScore > best.middleScore) ||
+      (sa.backScore === best.backScore && sa.middleScore === best.middleScore && sa.frontScore > best.frontScore)
+    ) {
+      best = sa;
+    }
   }
-  if (!chosen) throw new Error('no legal arrangements (impossible for 13 cards)');
-  return chosen;
+  if (!best) throw new Error('no legal arrangements (impossible for 13 cards)');
+  return best.arrangement;
 }
 
 function pickByScore(
@@ -106,7 +115,7 @@ function pickFrontWeighted(cards: Card[]): Arrangement {
 
 export function pickOpponentArrangement(cards: Card[], strategy: Strategy): Arrangement {
   switch (strategy) {
-    case 'random':         return pickRandomLegal(cards);
+    case 'lexBack':        return pickLexBack(cards);
     case 'maxProduct':     return pickMaxProduct(cards);
     case 'frontWeighted':  return pickFrontWeighted(cards);
   }

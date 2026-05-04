@@ -5,7 +5,7 @@
  * break running totals — append new slots if we ever go beyond three.
  */
 
-export type Strategy = 'random' | 'maxProduct' | 'frontWeighted';
+export type Strategy = 'lexBack' | 'maxProduct' | 'frontWeighted';
 
 export interface OpponentSlot {
   name: string;
@@ -16,8 +16,8 @@ export interface OpponentSlot {
 export const OPPONENT_SLOTS: readonly OpponentSlot[] = [
   {
     name: 'The Tourist',
-    strategy: 'random',
-    description: 'plays a random legal arrangement'
+    strategy: 'lexBack',
+    description: 'maxes the back hand and lets the front fend for itself'
   },
   {
     name: 'Solid Sam',
