@@ -14,6 +14,7 @@ export const soundEnabled = writable(true);
 
 let _ctx: AudioContext | null = null;
 let _enabled = true;
+let _unlocked = false;
 soundEnabled.subscribe(v => { _enabled = v; });
 
 function ctx(): AudioContext | null {
@@ -27,6 +28,41 @@ function ctx(): AudioContext | null {
     void _ctx.resume();
   }
   return _ctx;
+}
+
+/*
+ * iOS Safari unlock dance: even though playSwap/playWin run inside drag/click
+ * handlers (a user gesture), iOS won't actually output audio until an
+ * AudioContext has been created AND a sound has been started inside the
+ * gesture. resume() is async, so the context can still be suspended when our
+ * oscillator.start() runs — silent failure on iOS.
+ *
+ * Fix: on the very first user interaction anywhere on the page, create the
+ * context and play a 1-sample silent buffer. That fully unlocks audio for
+ * the rest of the session. Subsequent play calls work normally.
+ */
+function unlockOnce() {
+  if (_unlocked) return;
+  const ac = ctx();
+  if (!ac) return;
+  if (ac.state === 'suspended') void ac.resume();
+  // Silent 1-sample buffer — playing it inside a gesture is what iOS
+  // actually accepts as the unlock signal.
+  const buf = ac.createBuffer(1, 1, 22050);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.connect(ac.destination);
+  src.start(0);
+  _unlocked = true;
+}
+
+if (typeof window !== 'undefined') {
+  const opts: AddEventListenerOptions = { once: true, passive: true, capture: true };
+  // touchend is the most reliable gesture marker on iOS; cover other inputs too.
+  window.addEventListener('touchend', unlockOnce, opts);
+  window.addEventListener('touchstart', unlockOnce, opts);
+  window.addEventListener('mousedown', unlockOnce, opts);
+  window.addEventListener('keydown', unlockOnce, opts);
 }
 
 function noiseBurst(durationSec: number, ac: AudioContext): AudioBuffer {
