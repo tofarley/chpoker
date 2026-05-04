@@ -36,6 +36,31 @@ export function dealHand(): Card[] {
   return shuffle(fullDeck()).slice(0, 13);
 }
 
+export interface Round {
+  player: Card[];
+  opponents: Card[][];
+}
+
+/*
+ * Shuffle one deck and partition it into the player's 13 cards and
+ * `numOpponents` × 13 hands for AI opponents. No overlap. Mirrors
+ * primedope's approach (`dealOpponentCards` slices indices 13..25, 26..38,
+ * 39..51 from the same shuffled deck).
+ */
+export function dealRound(numOpponents = 3): Round {
+  if (numOpponents < 0 || numOpponents > 3) {
+    throw new Error(`numOpponents must be 0..3 (52 cards / 13 per hand max 4 hands)`);
+  }
+  const deck = shuffle(fullDeck());
+  const player = deck.slice(0, 13);
+  const opponents: Card[][] = [];
+  for (let i = 0; i < numOpponents; i++) {
+    const start = 13 + i * 13;
+    opponents.push(deck.slice(start, start + 13));
+  }
+  return { player, opponents };
+}
+
 export const RANK_LABEL: Record<Rank, string> = {
   2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8',
   9: '9', 10: '10', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'

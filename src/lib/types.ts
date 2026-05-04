@@ -21,6 +21,22 @@ export interface ArrangementNames {
   back: string;
 }
 
+export type RowOutcome = 'win' | 'loss' | 'tie';
+
+export interface OpponentScore {
+  arrangement: Arrangement;
+  names: ArrangementNames;
+  outcomes: { front: RowOutcome; middle: RowOutcome; back: RowOutcome };
+  rowPoints: { front: number; middle: number; back: number };
+  points: number;
+  scooped: 'us' | 'them' | null;
+}
+
+export interface MatchResult {
+  opponents: OpponentScore[];
+  total: number;
+}
+
 export interface SolveResult {
   optimum: Arrangement;
   optimumScore: number;

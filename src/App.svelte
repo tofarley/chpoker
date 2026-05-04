@@ -1,17 +1,22 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { dealHand } from './lib/deck';
+  import { dealRound, type Round } from './lib/deck';
   import { checkArrangement, solve } from './lib/solver';
   import { nameHand3, nameHand5 } from './lib/evaluator';
+  import { playMatch } from './lib/match';
   import { soundEnabled, playWin } from './lib/sound';
-  import type { Arrangement, SolveResult } from './lib/types';
+  import type { Arrangement, MatchResult, SolveResult } from './lib/types';
   import Board from './components/Board.svelte';
   import MiniArrangement from './components/MiniArrangement.svelte';
+  import MatchPanel from './components/MatchPanel.svelte';
   import Fireworks from './components/Fireworks.svelte';
 
+  let round: Round = dealRound();
   let arrangement: Arrangement = freshDeal();
   let solveResult: SolveResult | null = null;
+  let matchResult: MatchResult | null = null;
   let showSolve = false;
+  let showMatch = false;
   let showCelebration = false;
   let celebrationMessage = '';
 
@@ -19,7 +24,7 @@
   sendDebugTarget(arrangement);
 
   function freshDeal(): Arrangement {
-    const cards = dealHand();
+    const cards = round.player;
     return {
       back: cards.slice(0, 5),
       middle: cards.slice(5, 10),
@@ -28,11 +33,20 @@
   }
 
   function deal() {
+    round = dealRound();
     arrangement = freshDeal();
     solveResult = null;
+    matchResult = null;
     showSolve = false;
+    showMatch = false;
     showCelebration = false;
     sendDebugTarget(arrangement);
+  }
+
+  function runPlay() {
+    matchResult = playMatch(arrangement, round.opponents);
+    showMatch = true;
+    showSolve = false;
   }
 
   // Send the per-hand target to the vite dev-server terminal via the HMR
@@ -63,6 +77,7 @@
     const all = [...arrangement.back, ...arrangement.middle, ...arrangement.front];
     solveResult = solve(all, arrangement);
     showSolve = true;
+    showMatch = false;
 
     // Spirit match: same hand-name on every row as the balanced optimum
     // (kickers / suits may differ). If yes, celebrate.
@@ -134,6 +149,7 @@
   <div class="actions">
     <button on:click={deal}>Deal new</button>
     <button on:click={runSolve} disabled={!countsOk}>Solve</button>
+    <button on:click={runPlay} disabled={!countsOk || !check.legal}>Play vs AI</button>
     <button
       class="secondary icon-btn"
       title={$soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
@@ -142,6 +158,12 @@
       {$soundEnabled ? '🔊' : '🔇'}
     </button>
   </div>
+
+  {#if showMatch && matchResult}
+    <MatchPanel
+      result={matchResult}
+      userNames={{ front: liveFront, middle: liveMiddle, back: liveBack }} />
+  {/if}
 
   {#if showCelebration}
     <Fireworks on:done={() => showCelebration = false} />

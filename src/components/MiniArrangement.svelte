@@ -43,8 +43,11 @@
 
 <style>
   .mini-arrangement {
-    --card-w: 42px;
-    --card-h: 59px;
+    /* Scales between iPhone SE-ish (~42px) and desktop (~52px), so a 5-card
+       row never overflows the panel on small phones. 13vw on a 320px screen
+       is 41.6, well inside the available width after panel padding. */
+    --card-w: clamp(38px, 13vw, 52px);
+    --card-h: calc(var(--card-w) * 1.4);
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
