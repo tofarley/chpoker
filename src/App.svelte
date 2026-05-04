@@ -15,6 +15,9 @@
   let showCelebration = false;
   let celebrationMessage = '';
 
+  // Send initial deal's target to the vite dev server.
+  sendDebugTarget(arrangement);
+
   function freshDeal(): Arrangement {
     const cards = dealHand();
     return {
@@ -29,6 +32,31 @@
     solveResult = null;
     showSolve = false;
     showCelebration = false;
+    sendDebugTarget(arrangement);
+  }
+
+  // Send the per-hand target to the vite dev-server terminal via the HMR
+  // socket. Dev-only — `import.meta.hot` is undefined in the production
+  // bundle, so this is a no-op once deployed.
+  function sendDebugTarget(a: Arrangement) {
+    if (!import.meta.hot) return;
+    const all = [...a.back, ...a.middle, ...a.front];
+    const r = solve(all);
+    const fmt = (cards: { rank: number; suit: string }[]) =>
+      cards.map(c => `${c.rank}${c.suit}`).join(' ');
+    import.meta.hot.send('chpoker:target', {
+      target: {
+        bestFront: r.optimumNames.front,
+        bestFrontCards: fmt(r.optimum.front),
+        bestMiddle: r.optimumNames.middle,
+        bestMiddleCards: fmt(r.optimum.middle),
+        bestBack: r.optimumNames.back,
+        bestBackCards: fmt(r.optimum.back),
+        strongestBack: r.strongestBackNames.back,
+        strongestMiddle: r.strongestMiddleNames.middle,
+        strongestFront: r.strongestFrontNames.front
+      }
+    });
   }
 
   function runSolve() {
@@ -38,16 +66,26 @@
 
     // Spirit match: same hand-name on every row as the balanced optimum
     // (kickers / suits may differ). If yes, celebrate.
-    if (solveResult.userIsLegal) {
-      const userBack = nameHand5(arrangement.back);
-      const userMiddle = nameHand5(arrangement.middle);
-      const userFront = nameHand3(arrangement.front);
-      const opt = solveResult.optimumNames;
-      if (userBack === opt.back && userMiddle === opt.middle && userFront === opt.front) {
-        celebrationMessage = '🎉 You found the best play!';
-        showCelebration = true;
-        playWin();
-      }
+    const userBack = nameHand5(arrangement.back);
+    const userMiddle = nameHand5(arrangement.middle);
+    const userFront = nameHand3(arrangement.front);
+    const opt = solveResult.optimumNames;
+    const matched = userFront === opt.front && userMiddle === opt.middle && userBack === opt.back;
+
+    if (solveResult.userIsLegal && matched) {
+      celebrationMessage = '🎉 You found the best play!';
+      showCelebration = true;
+      playWin();
+    }
+
+    if (import.meta.hot) {
+      import.meta.hot.send('chpoker:solve', {
+        user: { front: userFront, middle: userMiddle, back: userBack },
+        target: { front: opt.front, middle: opt.middle, back: opt.back },
+        matched,
+        legal: solveResult.userIsLegal,
+        foulReason: solveResult.userFoulReason ?? ''
+      });
     }
   }
 
