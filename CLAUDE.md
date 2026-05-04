@@ -43,6 +43,7 @@ src/
     Fireworks.svelte               # canvas particle overlay shown on a "spirit-match" win
 scripts/
   generate-fixtures.ts             # regenerate primedope oracle fixtures
+  check-hand.ts                    # one-off solver-vs-oracle diff for a single 13-card hand
 tests/
   evaluator.test.ts                # rank3/rank5/naming unit tests
   manual-cases.test.ts             # hand-written fixtures (extend manual-cases.json)
@@ -301,6 +302,35 @@ cards):
   ranks. Different criteria, different answers.
 - **Legality** is non-negotiable: every solver output must satisfy
   back ≥ middle ≥ front.
+
+### Investigating a specific hand (`scripts/check-hand.ts`)
+
+When the user says "the solver gave me X but I expected Y," diff our
+solver against primedope on that exact hand instead of guessing:
+
+1. Open `scripts/check-hand.ts`, edit the `cards` array at the top to
+   the 13 cards in question. Accepts `'10c'` / `'tc'` / `'ac'` /
+   `'14c'` formats interchangeably.
+2. Run `npx tsx scripts/check-hand.ts`.
+
+Output (in order):
+- **Our solver** — the balanced (max-product) optimum with normalized
+  per-row scores and the resulting product. Useful for sanity-checking
+  why one arrangement beat another.
+- **The user's claimed arrangement** — its norm scores and product, so
+  you can compare directly to the optimum's product.
+- **Primedope oracle** — all 4 modes (best total, best front, best
+  middle, best back).
+
+The first time you run it after a fresh clone, the oracle lazily fetches
+`chinese-poker.js` from primedope into `tests/oracle/.cache/`; subsequent
+runs are offline.
+
+When investigating a "should this really be the best?" complaint, check
+that primedope's mode 0 (best total) and our `optimum` agree — if they
+do, the answer is "yes, the math beats the intuition" (this happened
+once with a 7-high vs 8-high straight where lifting the front kickers
+proved more valuable than lifting the middle straight by one rank).
 
 ### Adding hand-written cases
 
