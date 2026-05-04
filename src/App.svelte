@@ -185,7 +185,7 @@
 <main>
   <header>
     <h1>Chinese Poker Puzzle</h1>
-    <p class="tag">Arrange 13 cards into Front (3) · Middle (5) · Back (5). Each row must beat the row above it: Back &gt; Middle &gt; Front.</p>
+    <p class="tag">Arrange 13 cards into Front (3) · Middle (5) · Back (5). Each row must beat the row below it: Back &gt; Middle &gt; Front.</p>
   </header>
 
   <Board

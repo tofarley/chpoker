@@ -30,16 +30,19 @@ Safari and any modern browser. Built without a Mac (Vite + static hosting).
 src/
   App.svelte                       # root: header, board, status, actions, solve panel
   lib/
-    types.ts                       # Card, Arrangement, ArrangementNames, SolveResult
-    deck.ts                        # fullDeck, shuffle (crypto.getRandomValues), dealHand
+    types.ts                       # Card, Arrangement, ArrangementNames, SolveResult, MatchResult
+    deck.ts                        # fullDeck, shuffle, dealHand, dealRound (player + 3 opps)
     evaluator.ts                   # rank3, rank5, name functions, normalization helpers
-    solver.ts                      # 72,072-partition enumerator → 3 arrangements + foul check
-    sound.ts                       # Web Audio synth (no assets) + soundEnabled store
+    solver.ts                      # 72,072-partition enumerator → 4 arrangements + foul check
+    sound.ts                       # Web Audio synth: playSwap, playWin, playFoul + soundEnabled
+    match.ts                       # head-to-head 1-6 scoring, opp-vs-opp cross-table
+    score.ts                       # localStorage-backed running standings + OPPONENT_NAMES
   components/
     Card.svelte                    # CSS-drawn card (data-card-id is the drag handle)
     HandRow.svelte                 # one labeled row (data-row-name = front/middle/back)
     Board.svelte                   # owns interactjs wiring; emits 'change' on every move
     MiniArrangement.svelte         # non-interactive 3-row mini card display (solve panel)
+    MatchPanel.svelte              # round result + standings + per-opp blocks for Play vs AI
     Fireworks.svelte               # canvas particle overlay shown on a "spirit-match" win
 scripts/
   generate-fixtures.ts             # regenerate primedope oracle fixtures
@@ -99,10 +102,60 @@ handled in `App.svelte` via `arrangementKey()`.
 
 Solve runs in ~80ms for any 13-card hand; no web worker needed.
 
+## Play vs AI — head-to-head scoring
+
+The user is dealt 13 cards from a freshly shuffled deck and three opponents
+(slots 0/1/2 = "The Tourist", "Solid Sam", "The Professor") each get their
+own non-overlapping 13 from the same deck via `dealRound()`. All three
+opponents play the **balanced-optimum** arrangement (matches primedope's
+default mode 0 — primedope has no AI difficulty gating either; opponents
+just always play their best). Names are cosmetic for now; if we add real
+difficulty later, the slot mapping is documented in `score.ts`
+(Tourist=random legal, Sam=strongest-back lex, Professor=balanced max-product).
+
+**Scoring rule** — standard 1-6: +1 per row won, -1 per row lost, 0 tie.
+Win all three rows = +6 (scoop bonus); lose all three = -6 (scooped).
+
+**Pairwise everywhere.** Every pair of players (4 players → 6 pairs) is
+scored. Each `OpponentScore` carries `points` (user POV — what the user
+got from this opp), `pointsVsOthers` (this opp's net vs the other opps),
+and `roundTotal` (their full round from their POV). Standings update each
+opp's running by `roundTotal`, so opp slots can move based on opp-vs-opp
+performance even when the user fouls.
+
+**Foul rule** — flat **-6 round penalty for the user** when their
+arrangement isn't legal. Per-opp pairwise scoring vs the user is suppressed
+(no individual credit goes to opponents from the foul), but opp-vs-opp
+scoring still applies. We picked flat -6 (rather than -6×N or another
+canonical rule) by user direction; primedope's UI just blocks Play on foul
+so there's no canonical primedope foul-points value to copy.
+
+**Hidden live legality.** The status bar no longer shows "✓ Legal" / "✗
+Foul" while you drag — committing to a fouled arrangement and finding out
+on Solve/Play is part of the game. Counts progress is still shown.
+
+**Foul UX on Solve/Play.** Red banner ("✗ FOUL — <reason> [— automatic
+-6]") slides in from the top, auto-dismisses in ~4s, and `playFoul()`
+fires (3-note sad trombone, sawtooth + lowpass, pitch bend on the last
+note — the inverse counterpart to `playWin()`'s ascending fanfare).
+
+**Anti-grinding.** `roundCommitted` flag in `App.svelte` prevents
+double-counting standings if the user re-clicks Play with a different
+arrangement. The match panel still updates (and fireworks still fire on
+celebration), but the running totals don't move twice. Resets to false
+on Deal.
+
+**Running standings persistence.** `src/lib/score.ts` is a writable Svelte
+store backed by `localStorage` (key `chpoker:standings:v1`). Survives page
+refresh. Defensive parsing falls back to defaults on corrupted state. The
+Reset button on the Running Totals panel zeroes everything (with a confirm
+prompt). NUM_OPP_SLOTS is hardcoded at 3 for now; bumping it requires
+schema-version logic.
+
 ## UI conventions
 
 - **Row order is Front (top) → Middle → Back (bottom).** Set in
-  `Board.svelte`. The legality rule reads "each row beats the one above it,"
+  `Board.svelte`. The legality rule reads "each row beats the one below it,"
   which matches the visual stacking.
 - **Cards in each row are center-justified** (`HandRow.svelte` →
   `justify-content: center`). The 3-card Front aligns visually with the 5-card
@@ -246,16 +299,13 @@ clear the transform, then cleared after the animation.
 
 ## Roadmap / What's not built yet (intentional)
 
-- **Variable-strength AI opponent** — the next planned feature. Deal a
-  parallel 13 to a bot from the same shuffled deck (no shared cards), let
-  the bot pick its arrangement at some configurable skill level (e.g.,
-  "always optimal" vs. "max-back lex" vs. "random legal arrangement" vs.
-  weighted blends), then score head-to-head using the cpoker 1-6 rule
-  (1 point per row won, +3 bonus for scooping all three rows). Surface a
-  difficulty selector in the UI. The solver internals (`strongestBack`,
-  `strongestMiddle`, `strongestFront`, `optimum`) already give us a menu
-  of plausible bot strategies for free — variable strength is mostly UI
-  + a "weakening" function on top of those.
+- **Variable-strength AI opponents** — the slots are named (Tourist /
+  Sam / Professor) but all three currently play the same balanced-
+  optimum strategy. Upgrade plan: keep the names tier-coded, swap each
+  slot to a different arrangement strategy (Tourist = random legal,
+  Sam = strongest-back lex, Professor = balanced max-product). Mostly
+  UI scaffolding plus a `pickArrangement(slot, cards)` function — the
+  solver outputs we already compute give us the strategy menu for free.
 - **SVG card faces** — current CSS cards work fine; aesthetics-only upgrade.
   Adrian Kennard's public-domain "Vector Playing Cards" set is the obvious
   vendor target.
