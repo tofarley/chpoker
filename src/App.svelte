@@ -1,11 +1,11 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { dealRound, type Round } from './lib/deck';
-  import { checkArrangement, solve } from './lib/solver';
+  import { solve } from './lib/solver';
   import { nameHand3, nameHand5 } from './lib/evaluator';
   import { playMatch } from './lib/match';
   import { recordRound } from './lib/score';
-  import { soundEnabled, playWin } from './lib/sound';
+  import { soundEnabled, playWin, playFoul } from './lib/sound';
   import type { Arrangement, MatchResult, SolveResult } from './lib/types';
   import Board from './components/Board.svelte';
   import MiniArrangement from './components/MiniArrangement.svelte';
@@ -20,6 +20,10 @@
   let showMatch = false;
   let showCelebration = false;
   let celebrationMessage = '';
+  let showFoul = false;
+  let foulMessage = '';
+  let foulSubtitle = '';
+  let foulTimer: ReturnType<typeof setTimeout> | null = null;
   // Tracks whether the current round has already contributed to standings.
   // Re-clicking Play with a different arrangement still shows new scoring,
   // but does not double-count toward the running totals.
@@ -45,8 +49,21 @@
     showSolve = false;
     showMatch = false;
     showCelebration = false;
+    showFoul = false;
+    if (foulTimer) { clearTimeout(foulTimer); foulTimer = null; }
     roundCommitted = false;
     sendDebugTarget(arrangement);
+  }
+
+  // total is null when no scoring applies (Solve), or a number when Play
+  // committed an automatic loss. Foul = flat -6 round penalty.
+  function triggerFoul(reason: string, total: number | null) {
+    foulMessage = '✗ FOUL';
+    foulSubtitle = total === null ? reason : `${reason} — automatic ${total}`;
+    showFoul = true;
+    if (foulTimer) clearTimeout(foulTimer);
+    foulTimer = setTimeout(() => { showFoul = false; foulTimer = null; }, 4200);
+    playFoul();
   }
 
   function runPlay() {
@@ -58,15 +75,20 @@
     // a different arrangement updates the panel but does not add to the
     // tally — otherwise you could grind points by replaying.
     if (!roundCommitted) {
-      recordRound(matchResult.total, matchResult.opponents.map(o => o.points));
+      recordRound(matchResult.total, matchResult.opponents.map(o => o.roundTotal));
       roundCommitted = true;
     }
 
-    // Celebrate if our total >= the best individual opponent's score.
-    // opp.points is OUR score against that opponent (positive = we beat them),
-    // so the opponent's score from their POV is -opp.points.
+    if (matchResult.userFouled) {
+      triggerFoul(matchResult.foulReason ?? 'illegal arrangement', matchResult.total);
+      return;
+    }
+
+    // Celebrate if our total >= the best opponent's full round score (vs us
+    // + vs the other opps). Comparing against full-round opp scores is more
+    // honest now that opp-vs-opp scoring counts.
     if (matchResult.opponents.length > 0) {
-      const bestOpponent = Math.max(...matchResult.opponents.map(o => -o.points));
+      const bestOpponent = Math.max(...matchResult.opponents.map(o => o.roundTotal));
       if (matchResult.total >= bestOpponent) {
         celebrationMessage = '🎉 You beat the field!';
         showCelebration = true;
@@ -113,7 +135,10 @@
     const opt = solveResult.optimumNames;
     const matched = userFront === opt.front && userMiddle === opt.middle && userBack === opt.back;
 
-    if (solveResult.userIsLegal && matched) {
+    if (!solveResult.userIsLegal) {
+      // Solve doesn't score, so no "automatic -X" suffix on the banner.
+      triggerFoul(solveResult.userFoulReason ?? 'illegal arrangement', null);
+    } else if (matched) {
       celebrationMessage = '🎉 You found the best play!';
       showCelebration = true;
       playWin();
@@ -141,13 +166,13 @@
       .join('|');
   }
 
-  $: check = checkArrangement(arrangement);
+  // Note: legality is intentionally NOT shown live. The user has to
+  // commit to their arrangement and find out whether it's legal when
+  // they click Solve or Play vs AI — fouling is part of the game.
   $: countsOk = arrangement.back.length === 5 && arrangement.middle.length === 5 && arrangement.front.length === 3;
-  $: status = !countsOk
-    ? `Counts: ${arrangement.front.length}/3 · ${arrangement.middle.length}/5 · ${arrangement.back.length}/5`
-    : check.legal
-      ? '✓ Legal arrangement'
-      : `✗ Foul: ${check.reason}`;
+  $: status = countsOk
+    ? ''
+    : `Counts: ${arrangement.front.length}/3 · ${arrangement.middle.length}/5 · ${arrangement.back.length}/5`;
   $: liveBack = arrangement.back.length === 5 ? nameHand5(arrangement.back) : '';
   $: liveMiddle = arrangement.middle.length === 5 ? nameHand5(arrangement.middle) : '';
   $: liveFront = arrangement.front.length === 3 ? nameHand3(arrangement.front) : '';
@@ -170,12 +195,12 @@
     frontName={liveFront}
     on:change={onChange} />
 
-  <div class="status" class:bad={countsOk && !check.legal}>{status}</div>
+  <div class="status">{status}</div>
 
   <div class="actions">
     <button on:click={deal}>Deal new</button>
     <button on:click={runSolve} disabled={!countsOk}>Solve</button>
-    <button on:click={runPlay} disabled={!countsOk || !check.legal}>Play vs AI</button>
+    <button on:click={runPlay} disabled={!countsOk}>Play vs AI</button>
     <button
       class="secondary icon-btn"
       title={$soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
@@ -196,6 +221,13 @@
     <div class="celebration-banner" transition:fly={{ y: -40, duration: 280 }}>
       {celebrationMessage}
       <div class="celebration-sub">Your arrangement matches the best balanced solution.</div>
+    </div>
+  {/if}
+
+  {#if showFoul}
+    <div class="foul-banner" transition:fly={{ y: -40, duration: 280 }}>
+      {foulMessage}
+      <div class="foul-sub">{foulSubtitle}</div>
     </div>
   {/if}
 
@@ -302,7 +334,6 @@
     font-weight: 600;
     min-height: 1.4em;
   }
-  .status.bad { color: var(--status-bad); }
   .actions {
     margin-top: 0.7rem;
     display: flex;
@@ -314,6 +345,30 @@
     padding: 0.6rem 0.7rem;
     font-size: 1rem;
     line-height: 1;
+  }
+  .foul-banner {
+    position: fixed;
+    top: max(1rem, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #c8102e, #ff4d4d);
+    color: #fff;
+    padding: 0.75rem 1.2rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(200, 16, 46, 0.45), 0 2px 6px rgba(0,0,0,0.35);
+    font-weight: 800;
+    text-align: center;
+    z-index: 1001;
+    pointer-events: none;
+    max-width: calc(100vw - 2rem);
+    letter-spacing: 0.04em;
+  }
+  .foul-sub {
+    font-size: 0.78rem;
+    font-weight: 500;
+    opacity: 0.95;
+    margin-top: 0.15rem;
+    letter-spacing: 0;
   }
   .celebration-banner {
     position: fixed;

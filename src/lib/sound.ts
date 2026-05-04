@@ -102,6 +102,47 @@ export function playSwap(): void {
 }
 
 /*
+ * Synthesized "sad trombone" — three descending notes with a slight pitch
+ * bend down on the last for that classic "wah-wah-waaah" cue. Plays on a
+ * fouled arrangement when the user clicks Solve or Play vs AI.
+ */
+export function playFoul(): void {
+  if (!_enabled) return;
+  const ac = ctx();
+  if (!ac) return;
+
+  const now = ac.currentTime;
+  const notes = [311.13, 261.63, 207.65]; // Eb4, C4, G#3
+  const stagger = 0.18;
+
+  notes.forEach((freq, i) => {
+    const isLast = i === notes.length - 1;
+    const t = now + i * stagger;
+    const dec = isLast ? 0.7 : 0.35;
+
+    const saw = ac.createOscillator();
+    saw.type = 'sawtooth';
+    saw.frequency.setValueAtTime(freq, t);
+    if (isLast) saw.frequency.linearRampToValueAtTime(freq * 0.9, t + dec);
+
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = freq * 3;
+    filter.Q.value = 1.4;
+
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(0.18, t + 0.05);
+    env.gain.linearRampToValueAtTime(0.13, t + 0.18);
+    env.gain.exponentialRampToValueAtTime(0.0005, t + dec);
+
+    saw.connect(filter).connect(env).connect(ac.destination);
+    saw.start(t);
+    saw.stop(t + dec);
+  });
+}
+
+/*
  * Synthesized "trumpet fanfare" — four ascending notes (C5, E5, G5, C6),
  * sawtooth + square mixed through a lowpass for a brass-ish timbre. Same
  * no-assets approach as playSwap; close enough to a fanfare without a sample.

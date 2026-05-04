@@ -61,31 +61,98 @@ describe('scoreAgainst — basic outcomes', () => {
   });
 });
 
-describe('playMatch — multiple opponents', () => {
-  it('total is the sum of per-opponent points', () => {
-    // Build a 13-card user hand and three 13-card opponent hands that don't
-    // overlap; the solver picks each opponent's optimum, we score against them.
-    // We just check the structure here — exact arrangements depend on solver.
+describe('playMatch — fouls', () => {
+  it('fouled arrangement returns flat -6 total regardless of opponent count', () => {
+    // user front (AAA) > middle (KKpair) → foul: front beats middle
     const userArr: Arrangement = {
-      front: [c(14,'s'), c(14,'h'), c(14,'d')],            // AAA
-      middle: [c(14,'c'), c(13,'s'), c(13,'h'), c(13,'d'), c(13,'c')],  // 1A + 4K
-      back: [c(12,'s'), c(12,'h'), c(12,'d'), c(12,'c'), c(11,'s')]    // 4Q + J
+      front: [c(14,'s'), c(14,'h'), c(14,'d')],
+      middle: [c(13,'h'), c(13,'d'), c(7,'s'), c(3,'c'), c(2,'h')],
+      back: [c(11,'h'), c(11,'d'), c(11,'s'), c(11,'c'), c(8,'h')]
     };
-    // wait — that's two aces, four kings, four queens, plus one jack = 11 cards
-    // total in user. need to fix. but for the test, just validate the shape
-    // using arbitrary opponent hands.
+    const opp1 = [
+      c(2,'s'), c(3,'s'), c(4,'s'), c(5,'s'), c(6,'s'),
+      c(2,'c'), c(3,'c'), c(4,'c'), c(5,'c'), c(6,'c'),
+      c(2,'d'), c(3,'d'), c(4,'d')
+    ];
+    const r = playMatch(userArr, [opp1]);
+    expect(r.userFouled).toBe(true);
+    expect(r.total).toBe(-6);
+    expect(r.opponents).toHaveLength(1);
+    expect(r.opponents[0].points).toBe(0); // no individual credit vs user
+    expect(r.opponents[0].pointsVsOthers).toBe(0); // only one opp; no others
+    expect(r.opponents[0].roundTotal).toBe(0); // 0 vs user + 0 vs others
+  });
+});
+
+describe('playMatch — opp-vs-opp scoring', () => {
+  it('opponents score against each other (zero-sum across opp roundTotals minus their vs-user share)', () => {
+    // Three opponents, three distinct hands. Cards constructed so each opp
+    // gets a fresh 13. The user plays a strong, legal arrangement.
+    const userArr: Arrangement = {
+      front:  [c(14,'s'), c(14,'h'), c(14,'d')],
+      middle: [c(12,'s'), c(12,'h'), c(12,'d'), c(12,'c'), c(11,'s')],
+      back:   [c(13,'s'), c(13,'h'), c(13,'d'), c(13,'c'), c(14,'c')]
+    };
+    // Opp 1: a flush + trips
+    const o1 = [c(2,'s'), c(5,'s'), c(8,'s'), c(11,'s'), c(2,'h'), c(2,'d'), c(2,'c'), c(7,'h'), c(7,'d'), c(4,'h'), c(4,'d'), c(9,'c'), c(3,'h')];
+    // Opp 2: trips + pair
+    const o2 = [c(3,'s'), c(3,'c'), c(3,'d'), c(8,'h'), c(8,'c'), c(6,'s'), c(6,'h'), c(6,'c'), c(5,'h'), c(5,'c'), c(9,'s'), c(9,'h'), c(11,'c')];
+    // Opp 3: high cards mostly
+    const o3 = [c(10,'h'), c(10,'d'), c(10,'c'), c(7,'s'), c(7,'c'), c(4,'s'), c(4,'c'), c(11,'d'), c(11,'h'), c(9,'d'), c(8,'d'), c(6,'d'), c(5,'d')];
+    const r = playMatch(userArr, [o1, o2, o3]);
+    expect(r.userFouled).toBe(false);
+    expect(r.opponents).toHaveLength(3);
+    // Cross-scoring is symmetric: sum of pointsVsOthers across opps must be 0
+    const crossSum = r.opponents.reduce((s, o) => s + o.pointsVsOthers, 0);
+    expect(crossSum).toBe(0);
+    // Each opp's roundTotal = pointsVsUser + pointsVsOthers
+    for (const o of r.opponents) {
+      expect(o.roundTotal).toBe(-o.points + o.pointsVsOthers);
+    }
+    // User total still equals sum of user-vs-each-opp (unchanged by cross-scoring)
+    expect(r.total).toBe(r.opponents.reduce((s, o) => s + o.points, 0));
+  });
+
+  it('foul does not zero out opp-vs-opp scoring', () => {
+    // User fouls; opps still play each other.
+    const userArr: Arrangement = {
+      front: [c(14,'s'), c(14,'h'), c(14,'d')], // AAA
+      middle: [c(13,'h'), c(13,'d'), c(7,'s'), c(3,'c'), c(2,'h')], // pair Ks — foul
+      back: [c(11,'h'), c(11,'d'), c(11,'s'), c(11,'c'), c(8,'h')] // quad Js
+    };
+    const o1 = [c(2,'s'), c(5,'s'), c(8,'s'), c(11,'s'), c(2,'c'), c(2,'d'), c(7,'h'), c(7,'d'), c(4,'h'), c(4,'d'), c(9,'c'), c(3,'h'), c(3,'d')];
+    const o2 = [c(3,'s'), c(3,'c'), c(8,'h'), c(8,'c'), c(8,'d'), c(6,'s'), c(6,'h'), c(6,'c'), c(5,'h'), c(5,'c'), c(9,'s'), c(9,'h'), c(11,'c')];
+    const r = playMatch(userArr, [o1, o2]);
+    expect(r.userFouled).toBe(true);
+    expect(r.total).toBe(-6);
+    // pointsVsUser should be 0 for both, but pointsVsOthers should be opposite
+    // and non-zero (one opp beats the other).
+    expect(r.opponents[0].points).toBe(0);
+    expect(r.opponents[1].points).toBe(0);
+    expect(r.opponents[0].pointsVsOthers).toBe(-r.opponents[1].pointsVsOthers);
+    expect(r.opponents[0].roundTotal).toBe(r.opponents[0].pointsVsOthers);
+    expect(r.opponents[1].roundTotal).toBe(r.opponents[1].pointsVsOthers);
+  });
+});
+
+describe('playMatch — multiple opponents', () => {
+  it('total is the sum of per-opponent points (legal arrangement)', () => {
+    // Legal user arrangement: back (quad K + A) > middle (quad Q + J) > front (AAA).
+    const userArr: Arrangement = {
+      front:  [c(14,'s'), c(14,'h'), c(14,'d')],
+      middle: [c(12,'s'), c(12,'h'), c(12,'d'), c(12,'c'), c(11,'s')],
+      back:   [c(13,'s'), c(13,'h'), c(13,'d'), c(13,'c'), c(14,'c')]
+    };
     const opp1 = [
       c(2,'s'), c(2,'h'), c(2,'d'), c(2,'c'),
       c(3,'s'), c(3,'h'), c(3,'d'), c(3,'c'),
       c(4,'s'), c(4,'h'), c(4,'d'), c(4,'c'),
       c(5,'s')
     ];
-    // For the test, just one opponent is enough. We verify total = opp[0].points.
     const r = playMatch(userArr, [opp1]);
+    expect(r.userFouled).toBe(false);
     expect(r.opponents).toHaveLength(1);
     expect(r.total).toBe(r.opponents[0].points);
-    // sanity: user's full house+ beats opp's quad-twos+ in back? hard to predict
-    // without running solver. Just assert points is in [-6, 6].
     expect(r.opponents[0].points).toBeGreaterThanOrEqual(-6);
     expect(r.opponents[0].points).toBeLessThanOrEqual(6);
   });

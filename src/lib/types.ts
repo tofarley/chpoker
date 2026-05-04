@@ -26,15 +26,23 @@ export type RowOutcome = 'win' | 'loss' | 'tie';
 export interface OpponentScore {
   arrangement: Arrangement;
   names: ArrangementNames;
+  // vs the user (from the user's POV — positive = user beat this opp)
   outcomes: { front: RowOutcome; middle: RowOutcome; back: RowOutcome };
   rowPoints: { front: number; middle: number; back: number };
   points: number;
   scooped: 'us' | 'them' | null;
+  // Opp-vs-other-opps scoring (this opp's net points across the rest of the
+  // table). Plus roundTotal — what this opp actually netted this round
+  // including vs user. Used for the running standings.
+  pointsVsOthers: number;
+  roundTotal: number;
 }
 
 export interface MatchResult {
   opponents: OpponentScore[];
   total: number;
+  userFouled: boolean;
+  foulReason: string | null;
 }
 
 export interface SolveResult {

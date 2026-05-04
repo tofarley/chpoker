@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ArrangementNames, MatchResult, RowOutcome } from '../lib/types';
-  import { standings, resetStandings } from '../lib/score';
+  import { standings, resetStandings, OPPONENT_NAMES } from '../lib/score';
   import MiniArrangement from './MiniArrangement.svelte';
   export let result: MatchResult;
   export let userNames: ArrangementNames;
@@ -21,7 +21,11 @@
   $: leaderboard = (() => {
     const rows = [
       { name: 'You', points: $standings.user, isUser: true },
-      ...$standings.opponents.map((p, i) => ({ name: `Opponent ${i + 1}`, points: p, isUser: false }))
+      ...$standings.opponents.map((p, i) => ({
+        name: OPPONENT_NAMES[i] ?? `Opponent ${i + 1}`,
+        points: p,
+        isUser: false
+      }))
     ];
     rows.sort((a, b) => b.points - a.points);
     return rows;
@@ -45,16 +49,42 @@
     </div>
   </div>
 
+  <div class="standings">
+    <div class="standings-header">
+      <span class="standings-title">Running totals</span>
+      <span class="standings-hands">across {$standings.handsPlayed} {$standings.handsPlayed === 1 ? 'hand' : 'hands'}</span>
+      <button class="standings-reset" type="button" on:click={onReset}>Reset</button>
+    </div>
+    <ol class="leaderboard">
+      {#each leaderboard as row, i}
+        <li class:user={row.isUser}>
+          <span class="rank">{i + 1}</span>
+          <span class="who">{row.name}</span>
+          <span class="pts {pointsClass(row.points)}">{fmtPoints(row.points)}</span>
+        </li>
+      {/each}
+    </ol>
+  </div>
+
   <div class="vs-divider"><span>vs Opponents · this round</span></div>
 
   {#each result.opponents as opp, i}
     <div class="opponent">
       <div class="opp-header">
-        <span class="opp-name">Opponent {i + 1}</span>
+        <span class="opp-name">{OPPONENT_NAMES[i] ?? `Opponent ${i + 1}`}</span>
         <span class="opp-points {pointsClass(opp.points)}">{fmtPoints(opp.points)}</span>
         {#if opp.scooped === 'us'}<span class="badge scoop">you scooped</span>{/if}
         {#if opp.scooped === 'them'}<span class="badge scooped">they scooped</span>{/if}
       </div>
+      {#if result.opponents.length > 1}
+        <div class="opp-round-line">
+          <span class="opp-round-label">round</span>
+          <span class="opp-round-pts">{fmtPoints(opp.roundTotal)}</span>
+          <span class="opp-round-detail">
+            · vs you {fmtPoints(-opp.points)} · vs others {fmtPoints(opp.pointsVsOthers)}
+          </span>
+        </div>
+      {/if}
       <div class="opp-rows">
         <div class="opp-row {opp.outcomes.front}">
           <span class="opp-row-mark">{outcomeMark(opp.outcomes.front)}</span>
@@ -75,23 +105,6 @@
       <MiniArrangement arrangement={opp.arrangement} names={opp.names} />
     </div>
   {/each}
-
-  <div class="standings">
-    <div class="standings-header">
-      <span class="standings-title">Running totals</span>
-      <span class="standings-hands">across {$standings.handsPlayed} {$standings.handsPlayed === 1 ? 'hand' : 'hands'}</span>
-      <button class="standings-reset" type="button" on:click={onReset}>Reset</button>
-    </div>
-    <ol class="leaderboard">
-      {#each leaderboard as row, i}
-        <li class:user={row.isUser}>
-          <span class="rank">{i + 1}</span>
-          <span class="who">{row.name}</span>
-          <span class="pts {pointsClass(row.points)}">{fmtPoints(row.points)}</span>
-        </li>
-      {/each}
-    </ol>
-  </div>
 </section>
 
 <style>
@@ -208,6 +221,33 @@
   .opp-points.loss { color: var(--status-bad); }
   .opp-points.tie  { color: rgba(255,255,255,0.55); }
 
+  .opp-round-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin: 0.05rem 0 0.4rem;
+    font-size: 0.78rem;
+    opacity: 0.85;
+  }
+  .opp-round-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    font-weight: 700;
+    font-size: 0.68rem;
+  }
+  .opp-round-pts {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .opp-round-pts.win  { color: var(--status-good); }
+  .opp-round-pts.loss { color: var(--status-bad); }
+  .opp-round-pts.tie  { color: rgba(255,255,255,0.55); }
+  .opp-round-detail {
+    opacity: 0.55;
+    font-size: 0.72rem;
+  }
+
   .badge {
     margin-left: auto;
     font-size: 0.7rem;
@@ -259,7 +299,7 @@
 
   /* === Running standings === */
   .standings {
-    margin-top: 1rem;
+    margin-top: 0.7rem;
     padding: 0.7rem 0.9rem 0.85rem;
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 12px;

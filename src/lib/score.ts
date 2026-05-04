@@ -17,6 +17,14 @@ export interface Standings {
   opponents: number[];
 }
 
+// Opponent slot names. Cosmetic for now — all three play the same balanced
+// optimum strategy. The "tier" feel (Tourist < Sam < Professor) is just
+// flavor; if we add real difficulty later it will reuse these slots:
+//   Tourist   → random legal arrangement
+//   Solid Sam → strongest-back lex
+//   Professor → balanced max-product (current behavior of all three)
+export const OPPONENT_NAMES = ['The Tourist', 'Solid Sam', 'The Professor'] as const;
+
 const STORAGE_KEY = 'chpoker:standings:v1';
 const NUM_OPP_SLOTS = 3;
 
@@ -55,15 +63,16 @@ function persist(s: Standings) {
 export const standings: Writable<Standings> = writable(loadFromStorage());
 standings.subscribe(persist);
 
-export function recordRound(userTotal: number, oppPoints: number[]): void {
-  if (oppPoints.length !== NUM_OPP_SLOTS) {
-    throw new Error(`expected ${NUM_OPP_SLOTS} opponent points, got ${oppPoints.length}`);
+export function recordRound(userTotal: number, opponentRoundTotals: number[]): void {
+  if (opponentRoundTotals.length !== NUM_OPP_SLOTS) {
+    throw new Error(`expected ${NUM_OPP_SLOTS} opponent round totals, got ${opponentRoundTotals.length}`);
   }
+  // opponentRoundTotals are already from the OPPONENT's POV — what they
+  // netted this round across vs-user + vs-other-opponents. Just add.
   standings.update(s => ({
     handsPlayed: s.handsPlayed + 1,
     user: s.user + userTotal,
-    // oppPoints[i] is OUR score against opp i; opp i's tally grows by -oppPoints[i].
-    opponents: s.opponents.map((cum, i) => cum + (-oppPoints[i]))
+    opponents: s.opponents.map((cum, i) => cum + opponentRoundTotals[i])
   }));
 }
 

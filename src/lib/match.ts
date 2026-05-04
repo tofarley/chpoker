@@ -14,7 +14,7 @@
  */
 import type { Arrangement, Card, MatchResult, OpponentScore, RowOutcome } from './types';
 import { rank3, rank5, nameHand3, nameHand5 } from './evaluator';
-import { solve } from './solver';
+import { solve, checkArrangement } from './solver';
 
 function outcome(usScore: number, themScore: number): RowOutcome {
   if (usScore > themScore) return 'win';
@@ -46,11 +46,49 @@ export function scoreAgainst(user: Arrangement, opp: Arrangement): Pick<Opponent
   };
 }
 
+// Foul = flat -6 round penalty for the user. The user's per-opp pairwise
+// scoring is suppressed (no individual credit to opps from the foul), but
+// opp-vs-opp scoring still happens — opponents shouldn't suffer because
+// the user fouled, they keep playing the round against each other.
+const FOUL_PENALTY = -6;
+
+function foulResultAgainst(): Pick<OpponentScore, 'outcomes' | 'rowPoints' | 'points' | 'scooped'> {
+  return {
+    outcomes: { front: 'loss', middle: 'loss', back: 'loss' },
+    rowPoints: { front: 0, middle: 0, back: 0 },
+    points: 0,
+    scooped: null
+  };
+}
+
 export function playMatch(userArrangement: Arrangement, opponents: Card[][]): MatchResult {
-  const oppResults: OpponentScore[] = opponents.map(oppCards => {
-    const oppSolve = solve(oppCards);
-    const oppArr = oppSolve.optimum;
-    const score = scoreAgainst(userArrangement, oppArr);
+  const userCheck = checkArrangement(userArrangement);
+  const userFouled = !userCheck.legal;
+
+  // Solve each opponent's hand once.
+  const oppArrangements = opponents.map(cards => solve(cards).optimum);
+
+  // Cross-table: oppVsOpp[i][j] is opp i's points vs opp j (zero on diagonal).
+  // Symmetric: scoreAgainst(j, i) = -scoreAgainst(i, j), so we mirror.
+  const n = oppArrangements.length;
+  const oppVsOpp: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const pts = scoreAgainst(oppArrangements[i], oppArrangements[j]).points;
+      oppVsOpp[i][j] = pts;
+      oppVsOpp[j][i] = -pts;
+    }
+  }
+
+  const oppResults: OpponentScore[] = oppArrangements.map((oppArr, i) => {
+    const baseVsUser = userFouled
+      ? foulResultAgainst()
+      : scoreAgainst(userArrangement, oppArr);
+    // From the OPPONENT's POV: points vs user is -baseVsUser.points (since
+    // baseVsUser was computed from user's POV). On a foul both are 0.
+    const pointsVsUser = userFouled ? 0 : -baseVsUser.points;
+    const pointsVsOthers = oppVsOpp[i].reduce((s, v) => s + v, 0);
+    const roundTotal = pointsVsUser + pointsVsOthers;
     return {
       arrangement: oppArr,
       names: {
@@ -58,12 +96,18 @@ export function playMatch(userArrangement: Arrangement, opponents: Card[][]): Ma
         middle: nameHand5(oppArr.middle),
         back: nameHand5(oppArr.back)
       },
-      ...score
+      ...baseVsUser,
+      pointsVsOthers,
+      roundTotal
     };
   });
 
   return {
     opponents: oppResults,
-    total: oppResults.reduce((s, o) => s + o.points, 0)
+    total: userFouled
+      ? FOUL_PENALTY
+      : oppResults.reduce((s, o) => s + o.points, 0),
+    userFouled,
+    foulReason: userCheck.reason
   };
 }
