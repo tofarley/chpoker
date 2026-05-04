@@ -40,6 +40,7 @@ src/
     HandRow.svelte                 # one labeled row (data-row-name = front/middle/back)
     Board.svelte                   # owns interactjs wiring; emits 'change' on every move
     MiniArrangement.svelte         # non-interactive 3-row mini card display (solve panel)
+    Fireworks.svelte               # canvas particle overlay shown on a "spirit-match" win
 scripts/
   generate-fixtures.ts             # regenerate primedope oracle fixtures
 tests/
@@ -75,23 +76,25 @@ The 3-vs-5 comparison comes up in two places: the live foul-check on every drag
 ## What the solver returns
 
 `solve(cards, userArrangement?) → SolveResult` runs all 72,072 legal partitions
-once and tracks three different "optimal" answers in parallel:
+once and tracks four different "optimal" answers in parallel:
 
 - `optimum` — best **balanced** arrangement (max product of normalized hand
   strengths). Mirrors cpoker's `MaxProdEvaluator`. Often the most useful answer
   because it doesn't sacrifice one row for another.
 - `strongestBack` — arrangement with the absolute strongest legal Back (lex
-  order: max back, then max middle, then max front). Useful for "what's the
-  best Back I could have made?"
-- `strongestFront` — arrangement maximizing the Front (lex: max front, max
-  middle, max back). Surprisingly often the "smart" play since the Front is the
+  order: max back, then max middle, then max front).
+- `strongestMiddle` — analogous lex-max for the middle (max middle, then back,
+  then front).
+- `strongestFront` — analogous lex-max for the front (max front, max middle,
+  max back). Surprisingly often the "smart" play since the Front is the
   hardest position to fill.
 
 Plus per-arrangement hand-name strings ("Aces full of Queens", etc.) and
 `userIsLegal` / `userFoulReason` for the player's current arrangement.
 
-The three answers can coincide. The UI hides duplicate sections (showing "same
-as balanced" instead) — handled in `App.svelte` via `arrangementKey()`.
+The four answers can coincide. The UI hides duplicate sections (showing "same
+as balanced" / "same as strongest-back" / "same as strongest-middle" instead) —
+handled in `App.svelte` via `arrangementKey()`.
 
 Solve runs in ~80ms for any 13-card hand; no web worker needed.
 
@@ -106,8 +109,8 @@ Solve runs in ~80ms for any 13-card hand; no web worker needed.
 - **Card sizing** is driven by CSS custom properties on the parent:
   `--card-w` and `--card-h`. Override these on a wrapper to resize cards in a
   given context. The main board uses
-  `--card-w: clamp(40px, 9.5vw, 64px)`; `MiniArrangement` overrides with
-  `--card-w: 38px`.
+  `--card-w: clamp(44px, 10.5vw, 70px)`; `MiniArrangement` overrides with
+  `--card-w: 42px`.
 - **Card typography scales with `--card-w`.** `Card.svelte` sets
   `font-size: calc(var(--card-w) * 0.26)` and uses em-relative sizes for the
   rank indices and center glyph. **Do not switch to `vw`/`clamp` font sizing
@@ -149,13 +152,52 @@ Solve runs in ~80ms for any 13-card hand; no web worker needed.
   logic when a successful drop has already kicked off `animateChange()`
   (the dragged element is about to be destroyed by the state change, so
   resetting its inline transform would just fight the FLIP).
-- **Sound** (`src/lib/sound.ts`) is fully synthesized — a band-pass-swept
-  noise burst with an exponential decay envelope. No audio assets, royalty-
-  free by construction. AudioContext is lazily constructed on first play and
-  resumed if suspended (browsers require a user gesture, which the swap
-  always is). `soundEnabled` is a writable store; the speaker button in the
-  actions row toggles it, default on. Don't add assets — keep it synthesized
-  so the bundle stays tiny and there are no licensing footguns.
+- **Sound** (`src/lib/sound.ts`) is fully synthesized — `playSwap()` is a
+  band-pass-swept noise burst, `playWin()` is a 4-note ascending brass-ish
+  chord (sawtooth + square through lowpass; trumpet fanfare). No audio
+  assets, royalty-free by construction. `soundEnabled` is a writable store;
+  the speaker button in the actions row toggles it, default on. Don't add
+  assets — keep it synthesized so the bundle stays tiny and there are no
+  licensing footguns.
+
+### iOS Web Audio unlock (don't strip this)
+
+`sound.ts` registers `touchend` / `touchstart` / `mousedown` / `keydown`
+listeners on `window` (all `{ once: true }`) that fire `unlockOnce()` on
+the very first user interaction. That handler creates the AudioContext
+(if not already), calls `resume()`, and **plays a 1-sample silent buffer**.
+The silent buffer is the bit iOS Safari actually accepts as the unlock
+signal — without it, even though our `playSwap` runs inside drag/click
+gestures, iOS keeps the context suspended and silently drops the sound
+because `resume()` is async and hasn't completed by the time `start()`
+runs. Desktop browsers don't need this; iOS does. Removing the unlock
+logic will silently break audio on iPhone.
+
+## Win celebration
+
+When the user clicks **Solve** and their current arrangement matches the
+balanced optimum **by hand name on every row** (kickers and suits may
+differ — same hand identity counts as a match), three things fire:
+
+1. `Fireworks.svelte` mounts as a fixed full-viewport `pointer-events:none`
+   canvas overlay. ~4 staggered particle bursts (gravity + air drag +
+   per-particle decay), self-dispatches `done` when all particles die so
+   `App.svelte` unmounts it.
+2. `playWin()` synthesizes the 4-note ascending brass fanfare.
+3. A gold banner ("🎉 You found the best play!") flies in from the top
+   of the screen.
+
+Match check is **only inside `runSolve()`** — never in the drag handler.
+Dragging cards updates `arrangement` but does not touch `showCelebration`
+or `playWin()`. Don't move the trigger into a reactive `$:` block; users
+explicitly want celebration on Solve, not on every drag that happens to
+match.
+
+The match comparison is by name string (e.g., `"Pair of Sevens"`,
+`"Ace-high"`, `"Aces full of Queens"`) rather than by full rank3/rank5
+score. This is intentional — the user wanted to celebrate matching the
+spirit (e.g., "user's pair of 8s + ace-high front" matches solver's
+"pair of 8s + ace-high front" even with different kickers).
 
 ## Drag/drop architecture and pitfalls
 
@@ -201,11 +243,18 @@ clear the transform, then cleared after the animation.
 - **`https://www.primedope.com/play-online-chinese-poker/`** — rules reference
   and the existing UI we're improving on (clunky click-to-place, no drag).
 
-## What's not built yet (intentional)
+## Roadmap / What's not built yet (intentional)
 
-- **Win-rate vs random opponent** (a `winrate.ts` module). Approach: deal
-  random 13-card opponents from the remaining 39 cards, solve each at
-  MaxProd, score using the 1-6 rule from the cpoker docs. 1k samples in ~1s.
+- **Variable-strength AI opponent** — the next planned feature. Deal a
+  parallel 13 to a bot from the same shuffled deck (no shared cards), let
+  the bot pick its arrangement at some configurable skill level (e.g.,
+  "always optimal" vs. "max-back lex" vs. "random legal arrangement" vs.
+  weighted blends), then score head-to-head using the cpoker 1-6 rule
+  (1 point per row won, +3 bonus for scooping all three rows). Surface a
+  difficulty selector in the UI. The solver internals (`strongestBack`,
+  `strongestMiddle`, `strongestFront`, `optimum`) already give us a menu
+  of plausible bot strategies for free — variable strength is mostly UI
+  + a "weakening" function on top of those.
 - **SVG card faces** — current CSS cards work fine; aesthetics-only upgrade.
   Adrian Kennard's public-domain "Vector Playing Cards" set is the obvious
   vendor target.
@@ -277,32 +326,69 @@ npm run fixtures:gen # regenerate primedope fixtures (lazy-fetches their JS)
 
 ### Running the dev server when you need to verify a change
 
-The user expects you to start the dev server yourself when a change
-needs visual verification, then stop it when you're done. Don't leave it
-running across sessions — it shows up as a stuck "in progress" task in
-the user's UI long after the work is done.
+The user prefers running vite themselves in their own terminal so they
+see live HMR output AND the dev-only debug logs (see next section).
+Suggest they type `! npm run dev` in the prompt — the `!` prefix runs
+the command in their session and the output streams into the conversation.
 
-**Start** (always backgrounded so you can keep working in the meantime):
-
-```
-npm run dev   # invoke via Bash with run_in_background=true
-```
-
-Vite logs `Local: http://localhost:5173/` once it's ready (usually <1s).
-Quick smoke check that it's serving: `curl -sf http://localhost:5173/`.
-
-**Stop** when verification is done:
-
-```
-pkill -f "node.*vite"
-```
-
-Or kill the specific PIDs from `pgrep -af vite`. Confirm with
+If you do start it yourself, do it backgrounded (`run_in_background=true`)
+and **always stop it before the session ends** — leaving it running shows
+up as a stuck "in progress" task in the user's UI long after the work is
+done. Stop with `pkill -f "node.*vite"` and confirm with
 `curl -sf http://localhost:5173/ -o /dev/null && echo serving || echo stopped`.
 
-You can't drive the browser yourself, so visual verification means
-either asking the user to refresh and look, or — for non-visual changes
-— relying on the test suite, `svelte-check`, and `npm run build`.
+You can't drive the browser yourself, so visual verification means asking
+the user to refresh and look. For non-visual changes the test suite,
+`svelte-check`, and `npm run build` cover correctness.
+
+### Dev-only HMR debug logging (chpoker:target and chpoker:solve)
+
+`vite.config.ts` registers a `chpoker-debug-log` plugin that listens on
+the dev-server's HMR socket for two custom messages and pretty-prints
+them to the terminal:
+
+- `chpoker:target` — fires on every Deal. Shows the balanced-optimum
+  hand names + cards plus the three lex alternatives.
+- `chpoker:solve` — fires when the user clicks Solve. Side-by-side diff
+  of user vs. target hand names per row with `✓ MATCH` / `✗ DIFFER`
+  marks, plus a clear "→ celebration fires" / "→ no celebration"
+  verdict. Diagnoses why a near-match doesn't celebrate.
+
+The client side (in `App.svelte`) gates both sends on
+`if (import.meta.hot)`, so production bundles have no logging code or
+plugin overhead. Editing `vite.config.ts` requires a vite **restart**
+(HMR doesn't apply to the config itself).
+
+Pattern for future dev-only diagnostics: `import.meta.hot.send(name, payload)`
+on the client, `server.ws.on(name, handler)` on the plugin side. Same
+gating rule.
+
+## Deployment
+
+Live site: **https://tofarley.github.io/chpoker/** (project page, served
+from the `/chpoker/` subpath).
+
+- `vite.config.ts` sets `base: command === 'build' ? '/chpoker/' : '/'`
+  so built asset URLs resolve at the subpath in production while local
+  dev still uses `/`. **If we ever rename the repo or switch to a custom
+  domain, update the build branch of this conditional.**
+- `.github/workflows/deploy.yml` runs on push to `main`: `npm ci` →
+  `npm run check` → `npm run test:run` → `npm run build` →
+  `actions/upload-pages-artifact@v3` (uploads `dist/`) →
+  `actions/deploy-pages@v4`. Tests gate the deploy — a failing
+  `test:run` blocks publishing.
+- Pages source must be set to **"GitHub Actions"** in the repo's
+  Settings → Pages, not "Deploy from branch". Was set already.
+
+### Watch out for GitHub auto-creating `static.yml`
+
+When Pages was first configured, GitHub auto-suggested a `Deploy static
+content to Pages` workflow (`.github/workflows/static.yml`) that uploads
+the repo source as-is (`path: '.'`) with no build step. It ran AFTER our
+`deploy.yml` and overwrote it with the unbuilt `index.html` (script tag
+referenced `/src/main.ts`, the Vite dev path → blank page in production).
+We deleted that file (commit `9752367`); if it ever reappears (e.g., from
+a fresh Pages reconfigure), delete it again.
 
 ## Code-style notes
 
