@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ArrangementNames, MatchResult, RowOutcome } from '../lib/types';
+  import { standings, resetStandings } from '../lib/score';
   import MiniArrangement from './MiniArrangement.svelte';
   export let result: MatchResult;
   export let userNames: ArrangementNames;
@@ -15,14 +16,28 @@
     if (n < 0) return 'loss';
     return 'tie';
   }
+
+  // Sorted leaderboard rows from the persistent standings store.
+  $: leaderboard = (() => {
+    const rows = [
+      { name: 'You', points: $standings.user, isUser: true },
+      ...$standings.opponents.map((p, i) => ({ name: `Opponent ${i + 1}`, points: p, isUser: false }))
+    ];
+    rows.sort((a, b) => b.points - a.points);
+    return rows;
+  })();
+
+  function onReset() {
+    if (confirm('Reset running standings?')) resetStandings();
+  }
 </script>
 
 <section class="match-panel">
-  <!-- User's score: the headline answer -->
+  <!-- User's score for THIS round (not cumulative) -->
   <div class="you-card {pointsClass(result.total)}">
-    <div class="you-tag">YOUR SCORE</div>
+    <div class="you-tag">This round</div>
     <div class="you-points">{fmtPoints(result.total)}</div>
-    <div class="you-suffix">across {result.opponents.length} opponent{result.opponents.length === 1 ? '' : 's'}</div>
+    <div class="you-suffix">your score across {result.opponents.length} opponent{result.opponents.length === 1 ? '' : 's'}</div>
     <div class="you-hand">
       <div class="you-row"><span class="you-row-label">Front</span><span class="you-row-name">{userNames.front}</span></div>
       <div class="you-row"><span class="you-row-label">Middle</span><span class="you-row-name">{userNames.middle}</span></div>
@@ -30,7 +45,7 @@
     </div>
   </div>
 
-  <div class="vs-divider"><span>vs Opponents</span></div>
+  <div class="vs-divider"><span>vs Opponents · this round</span></div>
 
   {#each result.opponents as opp, i}
     <div class="opponent">
@@ -60,6 +75,23 @@
       <MiniArrangement arrangement={opp.arrangement} names={opp.names} />
     </div>
   {/each}
+
+  <div class="standings">
+    <div class="standings-header">
+      <span class="standings-title">Running totals</span>
+      <span class="standings-hands">across {$standings.handsPlayed} {$standings.handsPlayed === 1 ? 'hand' : 'hands'}</span>
+      <button class="standings-reset" type="button" on:click={onReset}>Reset</button>
+    </div>
+    <ol class="leaderboard">
+      {#each leaderboard as row, i}
+        <li class:user={row.isUser}>
+          <span class="rank">{i + 1}</span>
+          <span class="who">{row.name}</span>
+          <span class="pts {pointsClass(row.points)}">{fmtPoints(row.points)}</span>
+        </li>
+      {/each}
+    </ol>
+  </div>
 </section>
 
 <style>
@@ -224,4 +256,80 @@
     letter-spacing: 0.04em;
     margin: 0 0.15em;
   }
+
+  /* === Running standings === */
+  .standings {
+    margin-top: 1rem;
+    padding: 0.7rem 0.9rem 0.85rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.32);
+  }
+  .standings-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.45rem;
+  }
+  .standings-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    font-weight: 700;
+  }
+  .standings-hands {
+    font-size: 0.72rem;
+    opacity: 0.55;
+  }
+  .standings-reset {
+    margin-left: auto;
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    border: none;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .standings-reset:hover { background: rgba(255,255,255,0.14); }
+  .leaderboard {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+  }
+  .leaderboard li {
+    display: grid;
+    grid-template-columns: 1.6em 1fr auto;
+    gap: 0.6rem;
+    align-items: baseline;
+    font-size: 0.92rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+  }
+  .leaderboard li.user {
+    background: rgba(212,175,55,0.12);
+    color: #fff5d4;
+    font-weight: 600;
+  }
+  .leaderboard .rank {
+    text-align: right;
+    opacity: 0.55;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .leaderboard .who {
+    font-size: 0.92rem;
+  }
+  .leaderboard .pts {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .leaderboard .pts.win  { color: var(--status-good); }
+  .leaderboard .pts.loss { color: var(--status-bad); }
+  .leaderboard .pts.tie  { color: rgba(255,255,255,0.55); }
 </style>

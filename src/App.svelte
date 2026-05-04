@@ -4,6 +4,7 @@
   import { checkArrangement, solve } from './lib/solver';
   import { nameHand3, nameHand5 } from './lib/evaluator';
   import { playMatch } from './lib/match';
+  import { recordRound } from './lib/score';
   import { soundEnabled, playWin } from './lib/sound';
   import type { Arrangement, MatchResult, SolveResult } from './lib/types';
   import Board from './components/Board.svelte';
@@ -19,6 +20,10 @@
   let showMatch = false;
   let showCelebration = false;
   let celebrationMessage = '';
+  // Tracks whether the current round has already contributed to standings.
+  // Re-clicking Play with a different arrangement still shows new scoring,
+  // but does not double-count toward the running totals.
+  let roundCommitted = false;
 
   // Send initial deal's target to the vite dev server.
   sendDebugTarget(arrangement);
@@ -40,6 +45,7 @@
     showSolve = false;
     showMatch = false;
     showCelebration = false;
+    roundCommitted = false;
     sendDebugTarget(arrangement);
   }
 
@@ -47,6 +53,14 @@
     matchResult = playMatch(arrangement, round.opponents);
     showMatch = true;
     showSolve = false;
+
+    // Commit to running standings once per dealt hand. Re-clicking Play with
+    // a different arrangement updates the panel but does not add to the
+    // tally — otherwise you could grind points by replaying.
+    if (!roundCommitted) {
+      recordRound(matchResult.total, matchResult.opponents.map(o => o.points));
+      roundCommitted = true;
+    }
 
     // Celebrate if our total >= the best individual opponent's score.
     // opp.points is OUR score against that opponent (positive = we beat them),
