@@ -17,16 +17,14 @@ export interface Standings {
   opponents: number[];
 }
 
-// Opponent slot names. Cosmetic for now — all three play the same balanced
-// optimum strategy. The "tier" feel (Tourist < Sam < Professor) is just
-// flavor; if we add real difficulty later it will reuse these slots:
-//   Tourist   → random legal arrangement
-//   Solid Sam → strongest-back lex
-//   Professor → balanced max-product (current behavior of all three)
-export const OPPONENT_NAMES = ['The Tourist', 'Solid Sam', 'The Professor'] as const;
+// Slot metadata (names + strategies + descriptions) lives in opponents.ts
+// — the source of truth. Re-exported here for backward compat with the UI.
+export { OPPONENT_NAMES, OPPONENT_SLOTS, type Strategy, type OpponentSlot } from './opponents';
+import { OPPONENT_SLOTS } from './opponents';
+const NUM_OPP_SLOTS_FROM_DEFS = OPPONENT_SLOTS.length;
 
 const STORAGE_KEY = 'chpoker:standings:v1';
-const NUM_OPP_SLOTS = 3;
+const NUM_OPP_SLOTS = NUM_OPP_SLOTS_FROM_DEFS;
 
 const initial: Standings = {
   handsPlayed: 0,

@@ -20,7 +20,7 @@ function combinations(n: number, k: number): number[][] {
 const BACK_PICKS = combinations(13, 5);
 const MIDDLE_PICKS = combinations(8, 5);
 
-interface ScoredArrangement {
+export interface ScoredArrangement {
   arrangement: Arrangement;
   backScore: number;
   middleScore: number;
@@ -57,7 +57,7 @@ export function checkArrangement(a: Arrangement): {
   return { legal: true, reason: null, backScore, middleScore, frontScore };
 }
 
-function* enumerateLegal(cards: Card[]): Generator<ScoredArrangement> {
+export function* enumerateLegal(cards: Card[]): Generator<ScoredArrangement> {
   for (const backIdx of BACK_PICKS) {
     const back = pick(cards, backIdx);
     const backScore = rank5(back);

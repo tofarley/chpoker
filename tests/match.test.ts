@@ -2,7 +2,9 @@
  * Unit tests for the head-to-head scoring (1-6 rule).
  */
 import { describe, it, expect } from 'vitest';
-import { scoreAgainst, playMatch } from '../src/lib/match';
+import { scoreAgainst, playMatch, pickOpponentArrangement } from '../src/lib/match';
+import { checkArrangement } from '../src/lib/solver';
+import { rank3 } from '../src/lib/evaluator';
 import type { Arrangement, Card, Rank, Suit } from '../src/lib/types';
 
 const c = (rank: Rank, suit: Suit): Card => ({ rank, suit, id: `${rank}${suit}` });
@@ -81,6 +83,43 @@ describe('playMatch — fouls', () => {
     expect(r.opponents[0].points).toBe(0); // no individual credit vs user
     expect(r.opponents[0].pointsVsOthers).toBe(0); // only one opp; no others
     expect(r.opponents[0].roundTotal).toBe(0); // 0 vs user + 0 vs others
+  });
+});
+
+describe('pickOpponentArrangement — per-strategy behavior', () => {
+  // A hand where a strong front pair is available but max-product would
+  // favor a weaker front + stronger middle. The Professor's front-
+  // weighting should pick the stronger front.
+  const fourPairHand: Card[] = [
+    c(14,'d'), c(12,'d'), c(12,'s'), c(11,'s'), c(9,'s'),
+    c(8,'c'), c(8,'h'), c(7,'h'), c(5,'s'), c(5,'d'),
+    c(4,'h'), c(3,'d'), c(3,'c')
+  ];
+
+  it('every strategy returns a legal arrangement', () => {
+    for (const strat of ['random', 'maxProduct', 'frontWeighted'] as const) {
+      const a = pickOpponentArrangement(fourPairHand, strat);
+      expect(checkArrangement(a).legal).toBe(true);
+    }
+  });
+
+  it('random strategy uses all 13 cards exactly once', () => {
+    const a = pickOpponentArrangement(fourPairHand, 'random');
+    const allIds = [...a.front, ...a.middle, ...a.back].map(c => c.id).sort();
+    const inputIds = fourPairHand.map(c => c.id).sort();
+    expect(allIds).toEqual(inputIds);
+  });
+
+  it('Professor (frontWeighted) picks at least as strong a front as Sam (maxProduct)', () => {
+    const sam = pickOpponentArrangement(fourPairHand, 'maxProduct');
+    const prof = pickOpponentArrangement(fourPairHand, 'frontWeighted');
+    expect(rank3(prof.front)).toBeGreaterThanOrEqual(rank3(sam.front));
+  });
+
+  it('maxProduct is deterministic', () => {
+    const a1 = pickOpponentArrangement(fourPairHand, 'maxProduct');
+    const a2 = pickOpponentArrangement(fourPairHand, 'maxProduct');
+    expect(rank3(a1.front)).toBe(rank3(a2.front));
   });
 });
 

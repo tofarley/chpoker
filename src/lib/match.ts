@@ -13,8 +13,9 @@
  * winner. Documented in CLAUDE.md.
  */
 import type { Arrangement, Card, MatchResult, OpponentScore, RowOutcome } from './types';
-import { rank3, rank5, nameHand3, nameHand5 } from './evaluator';
-import { solve, checkArrangement } from './solver';
+import { rank3, rank5, nameHand3, nameHand5, normRank3, normRank5 } from './evaluator';
+import { checkArrangement, enumerateLegal, type ScoredArrangement } from './solver';
+import { OPPONENT_SLOTS, type Strategy } from './opponents';
 
 function outcome(usScore: number, themScore: number): RowOutcome {
   if (usScore > themScore) return 'win';
@@ -52,6 +53,65 @@ export function scoreAgainst(user: Arrangement, opp: Arrangement): Pick<Opponent
 // the user fouled, they keep playing the round against each other.
 const FOUL_PENALTY = -6;
 
+// Front-weighted scoring exponent for the Professor. The strategy guide
+// observes that fronts win disproportionately often (because most opps
+// have weak fronts), so a small front-percentile improvement is worth
+// more than the same improvement to middle/back. α=1.7 captures this
+// without over-prioritizing front to the point of risking scoops.
+const PROFESSOR_FRONT_ALPHA = 1.7;
+
+/*
+ * AI strategy pickers. Each takes 13 cards and returns the arrangement
+ * that strategy produces, given the legal-partition enumerator from the
+ * solver.
+ */
+function pickRandomLegal(cards: Card[]): Arrangement {
+  // Reservoir sampling — uniform random over all legal arrangements in a
+  // single pass. Math.random() is fine here; we don't need crypto-quality
+  // randomness for AI play.
+  let chosen: Arrangement | null = null;
+  let count = 0;
+  for (const sa of enumerateLegal(cards)) {
+    count++;
+    if (Math.random() * count < 1) chosen = sa.arrangement;
+  }
+  if (!chosen) throw new Error('no legal arrangements (impossible for 13 cards)');
+  return chosen;
+}
+
+function pickByScore(
+  cards: Card[],
+  scoreFn: (sa: ScoredArrangement) => number
+): Arrangement {
+  let best: ScoredArrangement | null = null;
+  let bestScore = -Infinity;
+  for (const sa of enumerateLegal(cards)) {
+    const s = scoreFn(sa);
+    if (s > bestScore) { bestScore = s; best = sa; }
+  }
+  if (!best) throw new Error('no legal arrangements (impossible for 13 cards)');
+  return best.arrangement;
+}
+
+function pickMaxProduct(cards: Card[]): Arrangement {
+  return pickByScore(cards, sa =>
+    normRank3(sa.frontScore) * normRank5(sa.middleScore) * normRank5(sa.backScore));
+}
+
+function pickFrontWeighted(cards: Card[]): Arrangement {
+  return pickByScore(cards, sa =>
+    Math.pow(normRank3(sa.frontScore), PROFESSOR_FRONT_ALPHA)
+    * normRank5(sa.middleScore) * normRank5(sa.backScore));
+}
+
+export function pickOpponentArrangement(cards: Card[], strategy: Strategy): Arrangement {
+  switch (strategy) {
+    case 'random':         return pickRandomLegal(cards);
+    case 'maxProduct':     return pickMaxProduct(cards);
+    case 'frontWeighted':  return pickFrontWeighted(cards);
+  }
+}
+
 function foulResultAgainst(): Pick<OpponentScore, 'outcomes' | 'rowPoints' | 'points' | 'scooped'> {
   return {
     outcomes: { front: 'loss', middle: 'loss', back: 'loss' },
@@ -65,8 +125,12 @@ export function playMatch(userArrangement: Arrangement, opponents: Card[][]): Ma
   const userCheck = checkArrangement(userArrangement);
   const userFouled = !userCheck.legal;
 
-  // Solve each opponent's hand once.
-  const oppArrangements = opponents.map(cards => solve(cards).optimum);
+  // Each opponent slot plays its assigned strategy (Tourist=random,
+  // Sam=max-product, Professor=front-weighted). See opponents.ts.
+  const oppArrangements = opponents.map((cards, i) => {
+    const strategy = OPPONENT_SLOTS[i]?.strategy ?? 'maxProduct';
+    return pickOpponentArrangement(cards, strategy);
+  });
 
   // Cross-table: oppVsOpp[i][j] is opp i's points vs opp j (zero on diagonal).
   // Symmetric: scoreAgainst(j, i) = -scoreAgainst(i, j), so we mirror.

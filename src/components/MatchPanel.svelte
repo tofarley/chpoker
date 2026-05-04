@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ArrangementNames, MatchResult, RowOutcome } from '../lib/types';
-  import { standings, resetStandings, OPPONENT_NAMES } from '../lib/score';
+  import { standings, resetStandings } from '../lib/score';
+  import { OPPONENT_SLOTS } from '../lib/opponents';
   import MiniArrangement from './MiniArrangement.svelte';
   export let result: MatchResult;
   export let userNames: ArrangementNames;
@@ -22,7 +23,7 @@
     const rows = [
       { name: 'You', points: $standings.user, isUser: true },
       ...$standings.opponents.map((p, i) => ({
-        name: OPPONENT_NAMES[i] ?? `Opponent ${i + 1}`,
+        name: OPPONENT_SLOTS[i]?.name ?? `Opponent ${i + 1}`,
         points: p,
         isUser: false
       }))
@@ -71,11 +72,14 @@
   {#each result.opponents as opp, i}
     <div class="opponent">
       <div class="opp-header">
-        <span class="opp-name">{OPPONENT_NAMES[i] ?? `Opponent ${i + 1}`}</span>
+        <span class="opp-name">{OPPONENT_SLOTS[i]?.name ?? `Opponent ${i + 1}`}</span>
         <span class="opp-points {pointsClass(opp.points)}">{fmtPoints(opp.points)}</span>
         {#if opp.scooped === 'us'}<span class="badge scoop">you scooped</span>{/if}
         {#if opp.scooped === 'them'}<span class="badge scooped">they scooped</span>{/if}
       </div>
+      {#if OPPONENT_SLOTS[i]?.description}
+        <div class="opp-strategy">{OPPONENT_SLOTS[i].description}</div>
+      {/if}
       {#if result.opponents.length > 1}
         <div class="opp-round-line">
           <span class="opp-round-label">round</span>
@@ -259,6 +263,13 @@
   }
   .badge.scoop   { background: rgba(95, 208, 132, 0.18); color: var(--status-good); }
   .badge.scooped { background: rgba(255, 107, 107, 0.18); color: var(--status-bad); }
+
+  .opp-strategy {
+    font-size: 0.72rem;
+    opacity: 0.5;
+    font-style: italic;
+    margin: -0.15rem 0 0.4rem;
+  }
 
   .opp-rows {
     display: flex;
