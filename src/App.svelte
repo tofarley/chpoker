@@ -11,6 +11,9 @@
   import MiniArrangement from './components/MiniArrangement.svelte';
   import MatchPanel from './components/MatchPanel.svelte';
   import Fireworks from './components/Fireworks.svelte';
+  import About from './components/About.svelte';
+
+  let showAbout = false;
 
   let round: Round = dealRound();
   let arrangement: Arrangement = freshDeal();
@@ -182,6 +185,9 @@
   }
 </script>
 
+{#if showAbout}
+  <About on:back={() => showAbout = false} />
+{:else}
 <main>
   <header>
     <h1>Chinese Poker Puzzle</h1>
@@ -304,7 +310,12 @@
       </div>
     </section>
   {/if}
+
+  <footer class="page-footer">
+    <button class="about-link" on:click={() => showAbout = true}>About / credits</button>
+  </footer>
 </main>
+{/if}
 
 <style>
   main {
@@ -449,6 +460,22 @@
   .hand-line { font-size: 0.95rem; line-height: 1.5; }
   .hand-line.ok { color: var(--status-good); }
   .hand-line.foul { color: var(--status-bad); }
+  .page-footer {
+    margin-top: 1.5rem;
+    padding: 1rem 0 0.5rem;
+    text-align: center;
+  }
+  .about-link {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 0.3rem 0.5rem;
+  }
+  .about-link:hover { color: rgba(255,255,255,0.85); }
   .apply {
     margin-top: 0.5rem;
     padding: 0.4rem 0.8rem;

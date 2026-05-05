@@ -35,8 +35,9 @@ src/
     evaluator.ts                   # rank3, rank5, name functions, normalization helpers
     solver.ts                      # 72,072-partition enumerator → 4 arrangements + foul check
     sound.ts                       # Web Audio synth: playSwap, playWin, playFoul + soundEnabled
-    match.ts                       # head-to-head 1-6 scoring, opp-vs-opp cross-table
-    score.ts                       # localStorage-backed running standings + OPPONENT_NAMES
+    match.ts                       # head-to-head 1-6 scoring, opp-vs-opp cross-table, per-strategy pickers
+    score.ts                       # localStorage-backed running standings (re-exports from opponents.ts)
+    opponents.ts                   # source of truth for slot {name, strategy, description}
   components/
     Card.svelte                    # CSS-drawn card (data-card-id is the drag handle)
     HandRow.svelte                 # one labeled row (data-row-name = front/middle/back)
@@ -44,9 +45,11 @@ src/
     MiniArrangement.svelte         # non-interactive 3-row mini card display (solve panel)
     MatchPanel.svelte              # round result + standings + per-opp blocks for Play vs AI
     Fireworks.svelte               # canvas particle overlay shown on a "spirit-match" win
+    About.svelte                   # credits page (sources, tech stack, attributions)
 scripts/
   generate-fixtures.ts             # regenerate primedope oracle fixtures
   check-hand.ts                    # one-off solver-vs-oracle diff for a single 13-card hand
+  simulate.ts                      # `npm run simulate [N] [user-strategy]` — empirical EV harness
 tests/
   evaluator.test.ts                # rank3/rank5/naming unit tests
   manual-cases.test.ts             # hand-written fixtures (extend manual-cases.json)
@@ -106,12 +109,27 @@ Solve runs in ~80ms for any 13-card hand; no web worker needed.
 
 The user is dealt 13 cards from a freshly shuffled deck and three opponents
 (slots 0/1/2 = "The Tourist", "Solid Sam", "The Professor") each get their
-own non-overlapping 13 from the same deck via `dealRound()`. All three
-opponents play the **balanced-optimum** arrangement (matches primedope's
-default mode 0 — primedope has no AI difficulty gating either; opponents
-just always play their best). Names are cosmetic for now; if we add real
-difficulty later, the slot mapping is documented in `score.ts`
-(Tourist=random legal, Sam=strongest-back lex, Professor=balanced max-product).
+own non-overlapping 13 from the same deck via `dealRound()`. **Each
+opponent plays a different strategy** — see `src/lib/opponents.ts` for the
+authoritative slot definitions:
+
+- **The Tourist** plays `lexBack` — always max the back (tiebreak: max
+  middle, then front). Coherent beginner mental model that consistently
+  leaves a weak front. Empirically averages ~−4 pts/hand against the field.
+- **Solid Sam** plays `maxProduct` — the cpoker MaxProdEvaluator
+  heuristic. Mirrors the "Best balanced" arrangement from our Solve panel.
+  Statistically tied with a user who plays the same strategy.
+- **The Professor** plays `frontWeighted`, but the actual scoring function
+  is the cpoker mode-0 EV-aware formula (NOT a power-weighted product —
+  that approach was tried and empirically failed). The formula is
+  `6·pScoop − 6·pScooped + (1 − pScoop − pScooped) · 2 · (f + m + b − 1.5)`
+  where `pScoop = f·m·b` and `pScooped = (1−f)·(1−m)·(1−b)`. Explicitly
+  models scoop bonuses and per-row expected wins; empirically averages
+  ~+0.5 pts/hand over Sam (~3σ separation at N=1000).
+
+Strategy results sit at expected ordering after 1000-hand sim:
+**Professor > You ≈ Sam > Tourist**, average gap ~5.5 pts/hand from top
+to bottom. See `scripts/simulate.ts` for the empirical EV harness.
 
 **Scoring rule** — standard 1-6: +1 per row won, -1 per row lost, 0 tie.
 Win all three rows = +6 (scoop bonus); lose all three = -6 (scooped).
@@ -299,13 +317,17 @@ clear the transform, then cleared after the animation.
 
 ## Roadmap / What's not built yet (intentional)
 
-- **Variable-strength AI opponents** — the slots are named (Tourist /
-  Sam / Professor) but all three currently play the same balanced-
-  optimum strategy. Upgrade plan: keep the names tier-coded, swap each
-  slot to a different arrangement strategy (Tourist = random legal,
-  Sam = strongest-back lex, Professor = balanced max-product). Mostly
-  UI scaffolding plus a `pickArrangement(slot, cards)` function — the
-  solver outputs we already compute give us the strategy menu for free.
+- **Faster `simulate.ts` runs** — currently ~300 ms/round (4× full
+  72k-partition enumerations). Could combine all 4 picks into one
+  enumeration pass per player (track best per strategy in parallel),
+  cutting a 1000-round sim from ~5 min to ~1 min.
+- **Hand-type heuristics** for AI strategy variants (5-pair, 4-pair,
+  3-pair shapes per the strategy guide). Could be a new tier above
+  Professor.
+- **Rollout-based EV evaluator** — for each candidate arrangement,
+  simulate against N random opponent hands and pick max EV. Most
+  accurate but expensive (~secs per pick). Worth it for a "Grandmaster"
+  tier if we ever want one.
 - **SVG card faces** — current CSS cards work fine; aesthetics-only upgrade.
   Adrian Kennard's public-domain "Vector Playing Cards" set is the obvious
   vendor target.
@@ -402,7 +424,33 @@ npm run check        # svelte-check + tsc
 npm run build        # static bundle to dist/  (~140 KB JS, ~43 KB gzip)
 npm run test:run     # full vitest suite
 npm run fixtures:gen # regenerate primedope fixtures (lazy-fetches their JS)
+npm run simulate     # `[N] [user-strategy]` — defaults: 1000 hands, maxProduct
 ```
+
+### Tuning AI strategies via `simulate.ts`
+
+When tweaking opponent strategies (especially Professor), run a sim to
+get an empirical EV picture. Output looks like:
+
+```
+rank  player          total      avg/hand     σ/hand
+ 1    The Professor      1607      1.607       6.20
+ 2    Solid Sam          1426      1.426       6.27
+ 3    You                1204      1.204       6.24
+ 4    The Tourist       -4237     -4.237       6.69
+zero-sum check: 0  (should be 0)
+```
+
+Useful sanity checks:
+- Zero-sum should always be exactly 0 (scoring is symmetric).
+- You and Sam should be statistically tied (both default to maxProduct);
+  σ/√N gives the noise floor (~0.20 at N=1000).
+- A real strategy difference shows as ~3σ or more separation.
+
+The `frontWeighted^α` approach (Professor's first attempt) lost to
+maxProduct empirically. The `cpoker mode-0 EV formula` does the right
+thing because it explicitly accounts for scoop probability and per-row
+expected wins.
 
 ### Running the dev server when you need to verify a change
 
