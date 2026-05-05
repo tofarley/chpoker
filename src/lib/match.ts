@@ -53,12 +53,13 @@ export function scoreAgainst(user: Arrangement, opp: Arrangement): Pick<Opponent
 // the user fouled, they keep playing the round against each other.
 const FOUL_PENALTY = -6;
 
-// Front-weighted scoring exponent for the Professor. The strategy guide
-// observes that fronts win disproportionately often (because most opps
-// have weak fronts), so a small front-percentile improvement is worth
-// more than the same improvement to middle/back. α=1.7 captures this
-// without over-prioritizing front to the point of risking scoops.
-const PROFESSOR_FRONT_ALPHA = 1.7;
+// Professor's scoring is EV-aware (ported from cpoker's mode-0 formula):
+// explicitly models scoop probability and per-row expected wins instead of
+// the geometric-mean shortcut that max-product uses. Combines:
+//   - pScoop bonus       (you win all three → +6)
+//   - pScooped penalty   (you lose all three → -6)
+//   - mid-ground sum     (expected per-row wins, scaled to ±something)
+// Empirically beats max-product when properly tuned.
 
 /*
  * AI strategy pickers. Each takes 13 cards and returns the arrangement
@@ -108,9 +109,18 @@ function pickMaxProduct(cards: Card[]): Arrangement {
 }
 
 function pickFrontWeighted(cards: Card[]): Arrangement {
-  return pickByScore(cards, sa =>
-    Math.pow(normRank3(sa.frontScore), PROFESSOR_FRONT_ALPHA)
-    * normRank5(sa.middleScore) * normRank5(sa.backScore));
+  return pickByScore(cards, sa => {
+    const f = normRank3(sa.frontScore);
+    const m = normRank5(sa.middleScore);
+    const b = normRank5(sa.backScore);
+    const pScoop = f * m * b;
+    const pScooped = (1 - f) * (1 - m) * (1 - b);
+    // 6 for full scoop, -6 for getting scooped, otherwise expected per-row
+    // wins (normRank ≈ P(win row) vs uniform; 2x-1.5 maps [0,1] to [-1,+1]).
+    return 6 * pScoop
+         - 6 * pScooped
+         + (1 - pScoop - pScooped) * 2 * (f + m + b - 1.5);
+  });
 }
 
 export function pickOpponentArrangement(cards: Card[], strategy: Strategy): Arrangement {

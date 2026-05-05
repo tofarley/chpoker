@@ -10,7 +10,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest",
     "test:run": "vitest run",
-    "fixtures:gen": "tsx scripts/generate-fixtures.ts"
+    "fixtures:gen": "tsx scripts/generate-fixtures.ts",
+    "simulate": "tsx scripts/simulate.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.2",
