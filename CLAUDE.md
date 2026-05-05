@@ -173,7 +173,7 @@ schema-version logic.
 ## UI conventions
 
 - **Row order is Front (top) → Middle → Back (bottom).** Set in
-  `Board.svelte`. The legality rule reads "each row beats the one below it,"
+  `Board.svelte`. The legality rule reads "each row beats the one above it,"
   which matches the visual stacking.
 - **Cards in each row are center-justified** (`HandRow.svelte` →
   `justify-content: center`). The 3-card Front aligns visually with the 5-card

@@ -10,9 +10,42 @@
   </header>
 
   <p class="lede">
-    A single-player Chinese Poker puzzle and AI sandbox. Built openly with
-    serious help from prior work — credit and links below.
+    A single-player Chinese Poker puzzle and AI sandbox.
   </p>
+
+  <section>
+    <h2>Acknowledgments</h2>
+    <p>
+      This app exists because primedope's tool exists and works correctly,
+      and because Paul Hankin published a clean Go implementation of the
+      underlying algorithm. The math here is theirs; what's new is the
+      drag/drop UX, the celebration trim, the tiered AI personalities,
+      and a test harness that uses primedope's own solver to keep us
+      honest.
+    </p>
+    <p class="thanks">Thank you to both projects. See sources at the bottom.</p>
+  </section>
+
+  <section>
+    <h2>How the AI tiers work</h2>
+    <p>The three opponent slots play distinct strategies, all derived from the same 72k-partition enumeration:</p>
+    <ul>
+      <li><strong>The Tourist</strong> plays "lex max back" — always picks the strongest legal back hand and lets the front fend for itself. A coherent beginner's mental model that consistently leaves the front weak.</li>
+      <li><strong>Solid Sam</strong> plays max-product (the cpoker MaxProdEvaluator heuristic). Balanced and solid.</li>
+      <li><strong>The Professor</strong> plays the cpoker mode-0 EV-aware formula directly: <code>6·pScoop − 6·pScooped + (1 − pScoop − pScooped) · 2 · (front + middle + back − 1.5)</code>. Empirically beats max-product over 1000-hand simulations.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Tech</h2>
+    <ul>
+      <li>Svelte 4 + Vite 5 + TypeScript</li>
+      <li>interactjs for drag-and-drop (touch + pointer)</li>
+      <li>Web Audio API for sound (synthesized — no audio assets)</li>
+      <li>Vitest for the test suite (~530 tests)</li>
+      <li>All card faces drawn with CSS — no card images</li>
+    </ul>
+  </section>
 
   <section>
     <h2>Sources we leaned on</h2>
@@ -58,40 +91,6 @@
         <li>The mode-0 EV-aware scoring formula (scoop/scooped probability + per-row expected wins) that The Professor uses to pick arrangements</li>
       </ul>
     </div>
-  </section>
-
-  <section>
-    <h2>How the AI tiers work</h2>
-    <p>The three opponent slots play distinct strategies, all derived from the same 72k-partition enumeration:</p>
-    <ul>
-      <li><strong>The Tourist</strong> plays "lex max back" — always picks the strongest legal back hand and lets the front fend for itself. A coherent beginner's mental model that consistently leaves the front weak.</li>
-      <li><strong>Solid Sam</strong> plays max-product (the cpoker MaxProdEvaluator heuristic). Balanced and solid.</li>
-      <li><strong>The Professor</strong> plays the cpoker mode-0 EV-aware formula directly: <code>6·pScoop − 6·pScooped + (1 − pScoop − pScooped) · 2 · (front + middle + back − 1.5)</code>. Empirically beats max-product over 1000-hand simulations.</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>Tech</h2>
-    <ul>
-      <li>Svelte 4 + Vite 5 + TypeScript</li>
-      <li>interactjs for drag-and-drop (touch + pointer)</li>
-      <li>Web Audio API for sound (synthesized — no audio assets)</li>
-      <li>Vitest for the test suite (~530 tests)</li>
-      <li>All card faces drawn with CSS — no card images</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>Acknowledgments</h2>
-    <p>
-      This app exists because primedope's tool exists and works correctly,
-      and because Paul Hankin published a clean Go implementation of the
-      underlying algorithm. The math here is theirs; what's new is the
-      drag/drop UX, the celebration trim, the tiered AI personalities,
-      and a test harness that uses primedope's own solver to keep us
-      honest.
-    </p>
-    <p class="thanks">Thank you to both projects.</p>
   </section>
 
   <footer>
